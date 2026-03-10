@@ -1,0 +1,223 @@
+{
+  "name": "tyranocode",
+  "displayName": "TyranoCode — TyranoScript Development Suite",
+  "description": "Professional development tools for TyranoScript / TyranoBuilder: debugger, analyzer, flow graph, auto-test, profiler, and more.",
+  "version": "0.1.0",
+  "publisher": "tyranocode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/youichi-uda/TyranoCode.git"
+  },
+  "license": "SEE LICENSE IN LICENSE.md",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Debuggers",
+    "Linters",
+    "Visualization",
+    "Testing"
+  ],
+  "keywords": [
+    "tyranoscript",
+    "tyranobuilder",
+    "visual novel",
+    "ティラノスクリプト",
+    "ティラノビルダー"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.ks",
+    "workspaceContains:tyrano/tyrano.js"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "tyranoscript",
+        "aliases": [
+          "TyranoScript",
+          "ティラノスクリプト"
+        ],
+        "extensions": [
+          ".ks"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tyranoscript",
+        "scopeName": "source.tyranoscript",
+        "path": "./syntaxes/tyranoscript.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "TyranoDev",
+      "properties": {
+        "tyranodev.projectRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the TyranoScript project root (containing data/ and tyrano/ directories). Auto-detected if empty."
+        },
+        "tyranodev.diagnostics.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time diagnostics and linting."
+        },
+        "tyranodev.diagnostics.undefinedLabel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn on jump/call to undefined labels."
+        },
+        "tyranodev.diagnostics.undefinedMacro": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn on usage of undefined macros."
+        },
+        "tyranodev.diagnostics.missingResource": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn on references to missing resource files (images, audio, etc.)."
+        },
+        "tyranodev.diagnostics.unusedLabel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn on labels that are never referenced."
+        },
+        "tyranodev.diagnostics.unreachableCode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn on code after unconditional jump/return."
+        },
+        "tyranodev.license.key": {
+          "type": "string",
+          "default": "",
+          "description": "License key for TyranoDev Pro features (debugger, flow graph, auto-test, profiler, refactoring).",
+          "markdownDescription": "License key for **TyranoCode Pro** features. [Purchase on Gumroad](https://tyranocode.gumroad.com/)"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "tyranodev.showFlowGraph",
+        "title": "TyranoDev: Show Scenario Flow Graph",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "tyranodev.analyzeProject",
+        "title": "TyranoDev: Analyze Entire Project"
+      },
+      {
+        "command": "tyranodev.runAllRoutes",
+        "title": "TyranoDev: Run All Routes (Auto-Test)"
+      },
+      {
+        "command": "tyranodev.profileScene",
+        "title": "TyranoDev: Profile Current Scene"
+      },
+      {
+        "command": "tyranodev.renameSymbol",
+        "title": "TyranoDev: Rename Label / Variable / Macro"
+      },
+      {
+        "command": "tyranodev.goToDefinition",
+        "title": "TyranoDev: Go to Definition"
+      },
+      {
+        "command": "tyranodev.findAllReferences",
+        "title": "TyranoDev: Find All References"
+      },
+      {
+        "command": "tyranodev.activateLicense",
+        "title": "TyranoDev: Activate Pro License"
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "tyranoscript"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "tyranoscript",
+        "label": "TyranoScript Debugger",
+        "languages": [
+          "tyranoscript"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "projectRoot"
+            ],
+            "properties": {
+              "projectRoot": {
+                "type": "string",
+                "description": "Path to TyranoScript project root.",
+                "default": "${workspaceFolder}"
+              },
+              "scene": {
+                "type": "string",
+                "description": "Starting scene file (e.g., first.ks).",
+                "default": "first.ks"
+              },
+              "port": {
+                "type": "number",
+                "description": "Debug server port.",
+                "default": 3100
+              }
+            }
+          }
+        },
+        "configurationSnippets": [
+          {
+            "label": "TyranoScript: Launch",
+            "description": "Launch TyranoScript game with debugger attached",
+            "body": {
+              "type": "tyranoscript",
+              "request": "launch",
+              "name": "Debug TyranoScript",
+              "projectRoot": "^\"\\${workspaceFolder}\"",
+              "scene": "first.ks",
+              "port": 3100
+            }
+          }
+        ]
+      }
+    ],
+    "views": {
+      "debug": [
+        {
+          "id": "tyranodev.variableWatch",
+          "name": "TyranoScript Variables",
+          "when": "debugType == 'tyranoscript'"
+        },
+        {
+          "id": "tyranodev.tagTracker",
+          "name": "Tag Execution Tracker",
+          "when": "debugType == 'tyranoscript'"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/debugadapter": "^1.65.0",
+    "@vscode/debugprotocol": "^1.65.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0"
+  },
+  "dependencies": {
+    "@vscode/debugadapter": "^1.65.0"
+  }
+}

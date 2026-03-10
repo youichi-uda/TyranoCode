@@ -1,0 +1,99 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TyranoScript",
+  "scopeName": "source.tyranoscript",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#label" },
+    { "include": "#iscript-block" },
+    { "include": "#html-block" },
+    { "include": "#tag" },
+    { "include": "#text-line" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "^;.*$",
+      "name": "comment.line.semicolon.tyranoscript"
+    },
+    "label": {
+      "match": "^(\\*)(\\w+)",
+      "captures": {
+        "1": { "name": "punctuation.definition.label.tyranoscript" },
+        "2": { "name": "entity.name.label.tyranoscript" }
+      }
+    },
+    "iscript-block": {
+      "begin": "^\\s*\\[(iscript)\\b[^\\]]*\\]",
+      "end": "^\\s*\\[(endscript)\\b[^\\]]*\\]",
+      "beginCaptures": {
+        "0": { "name": "meta.tag.tyranoscript" },
+        "1": { "name": "keyword.control.tyranoscript" }
+      },
+      "endCaptures": {
+        "0": { "name": "meta.tag.tyranoscript" },
+        "1": { "name": "keyword.control.tyranoscript" }
+      },
+      "contentName": "meta.embedded.block.javascript",
+      "patterns": [
+        { "include": "source.js" }
+      ]
+    },
+    "html-block": {
+      "begin": "^\\s*\\[(html)\\b[^\\]]*\\]",
+      "end": "^\\s*\\[(endhtml)\\b[^\\]]*\\]",
+      "beginCaptures": {
+        "0": { "name": "meta.tag.tyranoscript" },
+        "1": { "name": "keyword.control.tyranoscript" }
+      },
+      "endCaptures": {
+        "0": { "name": "meta.tag.tyranoscript" },
+        "1": { "name": "keyword.control.tyranoscript" }
+      },
+      "contentName": "meta.embedded.block.html",
+      "patterns": [
+        { "include": "text.html.basic" }
+      ]
+    },
+    "tag": {
+      "begin": "\\[",
+      "end": "\\]",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.tag.begin.tyranoscript" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.tag.end.tyranoscript" }
+      },
+      "name": "meta.tag.tyranoscript",
+      "patterns": [
+        { "include": "#tag-name" },
+        { "include": "#tag-attribute" }
+      ]
+    },
+    "tag-name": {
+      "match": "(?<=\\[)(jump|call|return|if|elsif|else|endif|iscript|endscript|html|endhtml|macro|endmacro|ignore|endignore)\\b",
+      "name": "keyword.control.tyranoscript"
+    },
+    "tag-attribute": {
+      "patterns": [
+        {
+          "match": "(\\w+)(=)(\"[^\"]*\"|'[^']*'|[^\\s\\]]+)",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.tyranoscript" },
+            "2": { "name": "punctuation.separator.key-value.tyranoscript" },
+            "3": { "name": "string.quoted.tyranoscript" }
+          }
+        },
+        {
+          "match": "(?<!\\=)\\b(\\w+)\\b(?!\\=)",
+          "captures": {
+            "1": { "name": "entity.name.tag.tyranoscript" }
+          }
+        }
+      ]
+    },
+    "text-line": {
+      "match": "^[^;\\[\\*#].*$",
+      "name": "string.unquoted.text.tyranoscript"
+    }
+  }
+}
