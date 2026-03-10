@@ -96,7 +96,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const analyzeDocument = (document: vscode.TextDocument) => {
     if (document.languageId !== LANGUAGE_ID) return;
-    const parsed = diagnostics.analyzeDocument(document);
+    diagnostics.analyzeDocument(document);
     indexer.indexDocument(document);
   };
 
@@ -135,12 +135,18 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('tyranodev.analyzeProject', async () => {
       await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: 'TyranoCode: Indexing project...' },
+        { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('TyranoCode: Indexing project...') },
         async () => {
           await indexer.indexWorkspace();
           const idx = indexer.getIndex();
           vscode.window.showInformationMessage(
-            `TyranoCode: Indexed ${idx.scenarios.size} files, ${idx.globalLabels.size} labels, ${idx.globalMacros.size} macros, ${idx.variables.size} variables.`,
+            vscode.l10n.t(
+              'TyranoCode: Indexed {0} files, {1} labels, {2} macros, {3} variables.',
+              idx.scenarios.size,
+              idx.globalLabels.size,
+              idx.globalMacros.size,
+              idx.variables.size,
+            ),
           );
         },
       );
@@ -202,7 +208,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('tyranodev.profileScene', async () => {
       if (!(await licenseManager.requirePro('profiler'))) return;
-      vscode.window.showInformationMessage('TyranoCode Profiler: Coming soon in next release.');
+      vscode.window.showInformationMessage(vscode.l10n.t('TyranoCode Profiler: Coming soon in next release.'));
     }),
   );
 
@@ -210,8 +216,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('tyranodev.renameSymbol', async () => {
       if (!(await licenseManager.requirePro('refactoring'))) return;
-      // Will use workspace edit to rename across files
-      vscode.window.showInformationMessage('TyranoCode Rename: Coming soon in next release.');
+      vscode.window.showInformationMessage(vscode.l10n.t('TyranoCode Rename: Coming soon in next release.'));
     }),
   );
 
@@ -249,21 +254,20 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Status bar ──
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
-  statusBar.text = licenseManager.isProLicensed ? '$(star-full) TyranoCode Pro' : '$(code) TyranoCode';
-  statusBar.tooltip = licenseManager.isProLicensed
-    ? 'TyranoCode Pro — All features unlocked'
-    : 'TyranoCode Free — Click to activate Pro license';
-  statusBar.command = licenseManager.isProLicensed ? undefined : 'tyranodev.activateLicense';
+
+  const updateStatusBar = (isValid: boolean) => {
+    statusBar.text = isValid ? '$(star-full) TyranoCode Pro' : '$(code) TyranoCode';
+    statusBar.tooltip = isValid
+      ? vscode.l10n.t('TyranoCode Pro — All features unlocked')
+      : vscode.l10n.t('TyranoCode Free — Click to activate Pro license');
+    statusBar.command = isValid ? undefined : 'tyranodev.activateLicense';
+  };
+
+  updateStatusBar(licenseManager.isProLicensed);
   statusBar.show();
   context.subscriptions.push(statusBar);
 
-  licenseManager.onDidChange(isValid => {
-    statusBar.text = isValid ? '$(star-full) TyranoCode Pro' : '$(code) TyranoCode';
-    statusBar.tooltip = isValid
-      ? 'TyranoCode Pro — All features unlocked'
-      : 'TyranoCode Free — Click to activate Pro license';
-    statusBar.command = isValid ? undefined : 'tyranodev.activateLicense';
-  });
+  licenseManager.onDidChange(updateStatusBar);
 
   console.log('TyranoCode activated successfully.');
 }

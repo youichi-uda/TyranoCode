@@ -1,0 +1,34 @@
+{
+  "extension.displayName": "TyranoCode — TyranoScript Development Suite",
+  "extension.description": "Professional development tools for TyranoScript / TyranoBuilder: debugger, analyzer, flow graph, auto-test, profiler, and more.",
+
+  "config.title": "TyranoCode",
+  "config.projectRoot.description": "Path to the TyranoScript project root (containing data/ and tyrano/ directories). Auto-detected if empty.",
+  "config.diagnostics.enable": "Enable real-time diagnostics and linting.",
+  "config.diagnostics.undefinedLabel": "Warn on jump/call to undefined labels.",
+  "config.diagnostics.undefinedMacro": "Warn on usage of undefined macros.",
+  "config.diagnostics.missingResource": "Warn on references to missing resource files (images, audio, etc.).",
+  "config.diagnostics.unusedLabel": "Warn on labels that are never referenced.",
+  "config.diagnostics.unreachableCode": "Warn on code after unconditional jump/return.",
+  "config.license.key.description": "License key for TyranoCode Pro features (debugger, flow graph, auto-test, profiler, refactoring).",
+  "config.license.key.markdownDescription": "License key for **TyranoCode Pro** features. [Purchase on Gumroad](https://tyranocode.gumroad.com/)",
+
+  "command.showFlowGraph": "TyranoCode: Show Scenario Flow Graph",
+  "command.analyzeProject": "TyranoCode: Analyze Entire Project",
+  "command.runAllRoutes": "TyranoCode: Run All Routes (Auto-Test)",
+  "command.profileScene": "TyranoCode: Profile Current Scene",
+  "command.renameSymbol": "TyranoCode: Rename Label / Variable / Macro",
+  "command.goToDefinition": "TyranoCode: Go to Definition",
+  "command.findAllReferences": "TyranoCode: Find All References",
+  "command.activateLicense": "TyranoCode: Activate Pro License",
+
+  "debugger.label": "TyranoScript Debugger",
+  "debugger.projectRoot.description": "Path to TyranoScript project root.",
+  "debugger.scene.description": "Starting scene file (e.g., first.ks).",
+  "debugger.port.description": "Debug server port.",
+  "debugger.snippet.label": "TyranoScript: Launch",
+  "debugger.snippet.description": "Launch TyranoScript game with debugger attached",
+
+  "view.variableWatch": "TyranoScript Variables",
+  "view.tagTracker": "Tag Execution Tracker"
+}

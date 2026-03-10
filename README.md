@@ -1,43 +1,60 @@
-# TyranoCode — TyranoScript Development Suite
+# TyranoCode — TyranoScript 統合開発環境
 
-Professional VS Code extension for TyranoScript / TyranoBuilder game development.
+[English](./README.en.md)
 
-## Free Features
+TyranoScript / TyranoBuilder でのゲーム開発を強力に支援する VS Code 拡張機能です。
 
-- **Syntax Highlighting** — Full TyranoScript grammar with embedded JS/HTML support
-- **Tag Autocompletion** — All built-in tags with parameter snippets and documentation
-- **Hover Documentation** — Bilingual (EN/JP) docs for tags, attributes, and variables
-- **Real-time Diagnostics** — Undefined labels/macros, missing parameters, unreachable code
-- **Go to Definition** — Navigate to label and macro definitions
-- **Find All References** — Find all usages of labels, macros, and variables
-- **Project-wide Analysis** — Index all `.ks` files for cross-file intelligence
+## 無料機能
 
-## Pro Features (License Key)
+| 機能 | 説明 |
+|------|------|
+| **シンタックスハイライト** | TyranoScript 完全対応。埋め込み JS / HTML もハイライト |
+| **タグ補完** | 全組込みタグをパラメータ付きスニペットで補完。ドキュメント付き |
+| **ホバードキュメント** | タグ・属性・変数にカーソルを合わせると日英の説明を表示 |
+| **リアルタイム診断** | 未定義ラベル/マクロ、必須パラメータ不足、到達不能コードを即座に検出 |
+| **定義ジャンプ** | ラベル・マクロの定義元に一発で移動 |
+| **参照検索** | ラベル・マクロ・変数の全使用箇所を検索 |
+| **プロジェクト解析** | 全 `.ks` ファイルを横断的にインデックス |
 
-Purchase a license on [Gumroad](https://tyranocode.gumroad.com/) to unlock:
+## Pro 機能（有料ライセンス）
 
-- **Breakpoint Debugger** — Set breakpoints, step through tags, inspect variables and call stack
-- **Scenario Flow Graph** — Visual graph of all jumps, calls, and choices across the entire game
-- **Auto-Test Runner** — Discover and execute all reachable routes, coverage reporting
-- **Performance Profiler** — Identify slow scenes and resource bottlenecks
-- **Refactoring Tools** — Safe rename for labels, variables, and macros across all files
+[Gumroad でライセンスを購入](https://tyranocode.gumroad.com/) すると、以下の機能がアンロックされます。
 
-## Getting Started
+| 機能 | 説明 |
+|------|------|
+| **ブレークポイントデバッガー** | ブレークポイント設定、タグ単位のステップ実行、変数/コールスタック表示 |
+| **シナリオフローグラフ** | jump/call/選択肢を解析し、ゲーム全体のフローを視覚化 |
+| **自動テストランナー** | 全到達可能ルートを自動探索・実行。カバレッジレポート |
+| **パフォーマンスプロファイラー** | 重いシーンやリソースのボトルネックを特定 |
+| **リファクタリング** | ラベル・変数・マクロの安全なリネーム。全ファイル一括更新 |
 
-1. Install from VS Code Marketplace
-2. Open a TyranoScript project (folder containing `.ks` files)
-3. The extension activates automatically
+> Pro 機能は**商用ライセンス**です。詳細は [LICENSE.md](./LICENSE.md) をご覧ください。
 
-For Pro features, run `TyranoCode: Activate Pro License` from the command palette.
+## はじめかた
 
-## Development
+1. VS Code Marketplace からインストール
+2. TyranoScript プロジェクト（`.ks` ファイルを含むフォルダ）を開く
+3. 拡張機能が自動的にアクティベートされます
+
+Pro 機能を使うには、コマンドパレットから `TyranoCode: Pro ライセンスを有効化` を実行してください。
+
+## ライセンスキーの設定
+
+以下のいずれかの方法で設定できます：
+
+1. **コマンドパレット** → `TyranoCode: Pro ライセンスを有効化` を実行
+2. **設定画面** → `tyranodev.license.key` にキーを入力
+3. **ステータスバー** → 左下の `TyranoCode` をクリック
+
+## 開発
 
 ```bash
 npm install
 npm run compile
-# Press F5 in VS Code to launch Extension Development Host
+# VS Code で F5 を押して Extension Development Host を起動
 ```
 
-## License
+## ライセンス
 
-MIT (extension code) — Pro features require a purchased license key.
+- 拡張機能のソースコード: MIT License
+- Pro 機能: 商用ライセンス（ライセンスキー必須）— [詳細](./LICENSE.md)

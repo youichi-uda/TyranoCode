@@ -1,0 +1,22 @@
+{
+  "TyranoCode: Indexing project...": "TyranoCode: プロジェクトをインデックス中...",
+  "TyranoCode: Indexed {0} files, {1} labels, {2} macros, {3} variables.": "TyranoCode: {0} ファイル、{1} ラベル、{2} マクロ、{3} 変数をインデックスしました。",
+  "TyranoCode Profiler: Coming soon in next release.": "TyranoCode プロファイラー: 次のリリースで実装予定です。",
+  "TyranoCode Rename: Coming soon in next release.": "TyranoCode リネーム: 次のリリースで実装予定です。",
+  "TyranoCode Pro activated! All Pro features are now available.": "TyranoCode Pro を有効化しました！すべての Pro 機能が利用可能です。",
+  "Invalid license key. Please check your key and try again.": "無効なライセンスキーです。キーを確認してもう一度お試しください。",
+  "{0} is a TyranoCode Pro feature. Purchase a license on Gumroad to unlock it.": "{0} は TyranoCode Pro の機能です。Gumroad でライセンスを購入してアンロックしてください。",
+  "Enter License Key": "ライセンスキーを入力",
+  "Purchase on Gumroad": "Gumroad で購入",
+  "TyranoCode Pro License Key": "TyranoCode Pro ライセンスキー",
+  "Enter your Gumroad license key (format: TDEV-XXXX-XXXX-XXXX-XXXX)": "Gumroad のライセンスキーを入力してください（形式: TDEV-XXXX-XXXX-XXXX-XXXX）",
+  "Please enter a license key": "ライセンスキーを入力してください",
+  "Invalid format. Expected: TDEV-XXXX-XXXX-XXXX-XXXX": "形式が正しくありません。正しい形式: TDEV-XXXX-XXXX-XXXX-XXXX",
+  "Debugger": "デバッガー",
+  "Scenario Flow Graph": "シナリオフローグラフ",
+  "Auto-Test": "自動テスト",
+  "Performance Profiler": "パフォーマンスプロファイラー",
+  "Refactoring Tools": "リファクタリングツール",
+  "TyranoCode Pro — All features unlocked": "TyranoCode Pro — 全機能アンロック済み",
+  "TyranoCode Free — Click to activate Pro license": "TyranoCode Free — クリックして Pro ライセンスを有効化"
+}

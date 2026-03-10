@@ -1,0 +1,22 @@
+{
+  "TyranoCode: Indexing project...": "TyranoCode: Indexing project...",
+  "TyranoCode: Indexed {0} files, {1} labels, {2} macros, {3} variables.": "TyranoCode: Indexed {0} files, {1} labels, {2} macros, {3} variables.",
+  "TyranoCode Profiler: Coming soon in next release.": "TyranoCode Profiler: Coming soon in next release.",
+  "TyranoCode Rename: Coming soon in next release.": "TyranoCode Rename: Coming soon in next release.",
+  "TyranoCode Pro activated! All Pro features are now available.": "TyranoCode Pro activated! All Pro features are now available.",
+  "Invalid license key. Please check your key and try again.": "Invalid license key. Please check your key and try again.",
+  "{0} is a TyranoCode Pro feature. Purchase a license on Gumroad to unlock it.": "{0} is a TyranoCode Pro feature. Purchase a license on Gumroad to unlock it.",
+  "Enter License Key": "Enter License Key",
+  "Purchase on Gumroad": "Purchase on Gumroad",
+  "TyranoCode Pro License Key": "TyranoCode Pro License Key",
+  "Enter your Gumroad license key (format: TDEV-XXXX-XXXX-XXXX-XXXX)": "Enter your Gumroad license key (format: TDEV-XXXX-XXXX-XXXX-XXXX)",
+  "Please enter a license key": "Please enter a license key",
+  "Invalid format. Expected: TDEV-XXXX-XXXX-XXXX-XXXX": "Invalid format. Expected: TDEV-XXXX-XXXX-XXXX-XXXX",
+  "Debugger": "Debugger",
+  "Scenario Flow Graph": "Scenario Flow Graph",
+  "Auto-Test": "Auto-Test",
+  "Performance Profiler": "Performance Profiler",
+  "Refactoring Tools": "Refactoring Tools",
+  "TyranoCode Pro — All features unlocked": "TyranoCode Pro — All features unlocked",
+  "TyranoCode Free — Click to activate Pro license": "TyranoCode Free — Click to activate Pro license"
+}

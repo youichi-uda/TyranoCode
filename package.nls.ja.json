@@ -1,0 +1,34 @@
+{
+  "extension.displayName": "TyranoCode — TyranoScript 統合開発環境",
+  "extension.description": "TyranoScript / TyranoBuilder のプロフェッショナル開発ツール。デバッガー、解析、フローグラフ、自動テスト、プロファイラーなど。",
+
+  "config.title": "TyranoCode",
+  "config.projectRoot.description": "TyranoScript プロジェクトルートのパス（data/ と tyrano/ を含むディレクトリ）。空欄の場合は自動検出します。",
+  "config.diagnostics.enable": "リアルタイム診断・リントを有効にする。",
+  "config.diagnostics.undefinedLabel": "未定義ラベルへの jump/call を警告する。",
+  "config.diagnostics.undefinedMacro": "未定義マクロの使用を警告する。",
+  "config.diagnostics.missingResource": "存在しないリソースファイル（画像、音声等）への参照を警告する。",
+  "config.diagnostics.unusedLabel": "どこからも参照されていないラベルを警告する。",
+  "config.diagnostics.unreachableCode": "無条件 jump/return の後の到達不能コードを警告する。",
+  "config.license.key.description": "TyranoCode Pro 機能（デバッガー、フローグラフ、自動テスト、プロファイラー、リファクタリング）のライセンスキー。",
+  "config.license.key.markdownDescription": "**TyranoCode Pro** 機能のライセンスキー。[Gumroad で購入](https://tyranocode.gumroad.com/)",
+
+  "command.showFlowGraph": "TyranoCode: シナリオフローグラフを表示",
+  "command.analyzeProject": "TyranoCode: プロジェクト全体を解析",
+  "command.runAllRoutes": "TyranoCode: 全ルートを実行（自動テスト）",
+  "command.profileScene": "TyranoCode: 現在のシーンをプロファイル",
+  "command.renameSymbol": "TyranoCode: ラベル / 変数 / マクロのリネーム",
+  "command.goToDefinition": "TyranoCode: 定義へ移動",
+  "command.findAllReferences": "TyranoCode: すべての参照を検索",
+  "command.activateLicense": "TyranoCode: Pro ライセンスを有効化",
+
+  "debugger.label": "TyranoScript デバッガー",
+  "debugger.projectRoot.description": "TyranoScript プロジェクトルートのパス。",
+  "debugger.scene.description": "開始シナリオファイル（例: first.ks）。",
+  "debugger.port.description": "デバッグサーバーのポート番号。",
+  "debugger.snippet.label": "TyranoScript: 起動",
+  "debugger.snippet.description": "TyranoScript ゲームをデバッガー接続で起動",
+
+  "view.variableWatch": "TyranoScript 変数",
+  "view.tagTracker": "タグ実行トラッカー"
+}

@@ -22,9 +22,20 @@ SOFTWARE.
 
 ---
 
-## TyranoCode Pro License
+## TyranoCode Pro — 商用ライセンス / Commercial License
 
-Pro features (Debugger, Flow Graph, Auto-Test, Profiler, Refactoring) require
-a valid license key purchased from https://tyranocode.gumroad.com/
+TyranoCode Pro の機能（デバッガー、フローグラフ、自動テスト、プロファイラー、リファクタリング）は
+**商用ライセンス**です。ご利用にはライセンスキーの購入が必要です。
 
-The license key is per-user and may be used on multiple machines by the same person.
+The Pro features of TyranoCode (Debugger, Flow Graph, Auto-Test, Profiler, Refactoring)
+are provided under a **commercial license**. A purchased license key is required.
+
+- 購入先 / Purchase: https://tyranocode.gumroad.com/
+- ライセンスキーは購入者個人に付与されます。同一人物が複数のマシンで使用することは可能です。
+- The license key is granted to the individual purchaser. It may be used on multiple machines by the same person.
+- ライセンスキーの再配布・共有は禁止です。
+- Redistribution or sharing of license keys is prohibited.
+- 本ソフトウェアのソースコードは MIT ライセンスで公開されていますが、Pro 機能のライセンスキーなしでの
+  商用利用目的での Pro 機能の使用は許諾されません。
+- While the source code is published under the MIT License, use of Pro features without
+  a valid license key for commercial purposes is not permitted.

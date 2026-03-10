@@ -66,13 +66,13 @@ export class LicenseManager {
    */
   async activateLicense(): Promise<void> {
     const key = await vscode.window.showInputBox({
-      title: 'TyranoCode Pro License Key',
-      prompt: 'Enter your Gumroad license key (format: TDEV-XXXX-XXXX-XXXX-XXXX)',
+      title: vscode.l10n.t('TyranoCode Pro License Key'),
+      prompt: vscode.l10n.t('Enter your Gumroad license key (format: TDEV-XXXX-XXXX-XXXX-XXXX)'),
       placeHolder: 'TDEV-XXXX-XXXX-XXXX-XXXX',
       validateInput: (value) => {
-        if (!value) return 'Please enter a license key';
+        if (!value) return vscode.l10n.t('Please enter a license key');
         if (!/^TDEV-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(value)) {
-          return 'Invalid format. Expected: TDEV-XXXX-XXXX-XXXX-XXXX';
+          return vscode.l10n.t('Invalid format. Expected: TDEV-XXXX-XXXX-XXXX-XXXX');
         }
         return null;
       },
@@ -84,11 +84,11 @@ export class LicenseManager {
       const config = vscode.workspace.getConfiguration('tyranodev');
       await config.update('license.key', key, vscode.ConfigurationTarget.Global);
       vscode.window.showInformationMessage(
-        'TyranoCode Pro activated! All Pro features are now available.'
+        vscode.l10n.t('TyranoCode Pro activated! All Pro features are now available.')
       );
     } else {
       vscode.window.showErrorMessage(
-        'Invalid license key. Please check your key and try again.'
+        vscode.l10n.t('Invalid license key. Please check your key and try again.')
       );
     }
   }
@@ -100,25 +100,28 @@ export class LicenseManager {
     if (this._isValid) return true;
 
     const featureNames: Record<Feature, string> = {
-      'debugger': 'Debugger',
-      'flow-graph': 'Scenario Flow Graph',
-      'auto-test': 'Auto-Test',
-      'profiler': 'Performance Profiler',
-      'refactoring': 'Refactoring Tools',
+      'debugger': vscode.l10n.t('Debugger'),
+      'flow-graph': vscode.l10n.t('Scenario Flow Graph'),
+      'auto-test': vscode.l10n.t('Auto-Test'),
+      'profiler': vscode.l10n.t('Performance Profiler'),
+      'refactoring': vscode.l10n.t('Refactoring Tools'),
     };
 
+    const enterKey = vscode.l10n.t('Enter License Key');
+    const purchase = vscode.l10n.t('Purchase on Gumroad');
+
     const result = await vscode.window.showWarningMessage(
-      `${featureNames[feature]} is a TyranoCode Pro feature. Purchase a license on Gumroad to unlock it.`,
-      'Enter License Key',
-      'Purchase on Gumroad',
+      vscode.l10n.t('{0} is a TyranoCode Pro feature. Purchase a license on Gumroad to unlock it.', featureNames[feature]),
+      enterKey,
+      purchase,
     );
 
-    if (result === 'Enter License Key') {
+    if (result === enterKey) {
       await this.activateLicense();
       return this._isValid;
     }
 
-    if (result === 'Purchase on Gumroad') {
+    if (result === purchase) {
       vscode.env.openExternal(vscode.Uri.parse('https://tyranocode.gumroad.com/'));
     }
 
