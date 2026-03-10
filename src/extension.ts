@@ -30,6 +30,11 @@ import { TyranoLinkProvider } from './language/link-provider';
 import { TyranoColorProvider } from './language/color-provider';
 import { TyranoFoldingProvider } from './language/folding-provider';
 import { TyranoSignatureProvider } from './language/signature-provider';
+import { TyranoCodeLensProvider } from './language/codelens-provider';
+import { TyranoCodeActionProvider } from './language/codeaction-provider';
+import { TyranoInlayHintsProvider } from './language/inlayhint-provider';
+import { TyranoSemanticTokensProvider, SEMANTIC_TOKENS_LEGEND } from './language/semantic-tokens-provider';
+import { registerSnippets } from './language/snippets';
 import { ProjectIndexer } from './analyzer/project-indexer';
 import { LicenseManager } from './license/license-manager';
 import { FlowGraphProvider } from './flow-graph/flow-graph-provider';
@@ -147,6 +152,44 @@ export function activate(context: vscode.ExtensionContext): void {
       ' ',
     ),
   );
+
+  // Code Lens (reference counts above labels/macros)
+  const codeLensProvider = new TyranoCodeLensProvider(getIndex);
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      { language: LANGUAGE_ID },
+      codeLensProvider,
+    ),
+  );
+
+  // Code Actions (quick fixes)
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { language: LANGUAGE_ID },
+      new TyranoCodeActionProvider(),
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
+    ),
+  );
+
+  // Inlay Hints
+  context.subscriptions.push(
+    vscode.languages.registerInlayHintsProvider(
+      { language: LANGUAGE_ID },
+      new TyranoInlayHintsProvider(getIndex),
+    ),
+  );
+
+  // Semantic Tokens
+  context.subscriptions.push(
+    vscode.languages.registerDocumentSemanticTokensProvider(
+      { language: LANGUAGE_ID },
+      new TyranoSemanticTokensProvider(),
+      SEMANTIC_TOKENS_LEGEND,
+    ),
+  );
+
+  // Snippets
+  registerSnippets(context, LANGUAGE_ID);
 
   // Diagnostics — real-time analysis on document change
   context.subscriptions.push(diagnostics.collection);
