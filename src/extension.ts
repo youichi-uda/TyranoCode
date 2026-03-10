@@ -39,6 +39,7 @@ import { TyranoRenameProvider } from './language/rename-provider';
 import { TyranoCallHierarchyProvider } from './language/callhierarchy-provider';
 import { TyranoBracketHighlightProvider } from './language/bracket-provider';
 import { registerVariableTracker } from './language/variable-tracker';
+import { registerPreview } from './language/preview-provider';
 import { ProjectIndexer } from './analyzer/project-indexer';
 import { LicenseManager } from './license/license-manager';
 import { FlowGraphProvider } from './flow-graph/flow-graph-provider';
@@ -221,6 +222,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Variable tracker tree view
   registerVariableTracker(context, getIndex);
+
+  // Scene preview
+  registerPreview(context, getIndex);
 
   // Diagnostics — real-time analysis on document change
   context.subscriptions.push(diagnostics.collection);

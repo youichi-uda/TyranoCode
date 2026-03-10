@@ -65,9 +65,10 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
       const tagName = tagNameMatch[1].toLowerCase();
 
       // Check if we're inside a storage= or file= attribute value — offer resource file completions
-      const resourceAttrMatch = textBefore.match(/(?:storage|file)=["']([^"']*)$/);
+      const resourceAttrMatch = textBefore.match(/(?:storage|file)=(?:["']([^"']*)|(\S*))$/);
       if (resourceAttrMatch) {
-        return this.completeResourceFiles(tagName, resourceAttrMatch[1]);
+        const partial = resourceAttrMatch[1] ?? resourceAttrMatch[2] ?? '';
+        return this.completeResourceFiles(tagName, partial);
       }
 
       // Check if we're completing an attribute value (after =)

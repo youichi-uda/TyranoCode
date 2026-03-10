@@ -140,6 +140,10 @@
       {
         "command": "tyranodev.refreshVariables",
         "title": "TyranoCode: Refresh Variables"
+      },
+      {
+        "command": "tyranodev.previewScene",
+        "title": "TyranoCode: Preview Scene"
       }
     ],
     "breakpoints": [
