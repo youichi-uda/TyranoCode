@@ -57,6 +57,11 @@ export class TyranoBracketHighlightProvider implements vscode.DocumentHighlightP
 
     const name = current.name.toLowerCase();
 
+    // Case 1a: Cursor on elsif/else — find matching if, then highlight entire block
+    if (IF_INTERMEDIATES.has(name)) {
+      return this.highlightFromIntermediate(tagTokens, current);
+    }
+
     // Case 1: Block pair with "end" prefix (if/endif, macro/endmacro, etc.)
     if (BLOCK_PAIRS.has(name)) {
       return this.highlightBlockPair(tagTokens, current);
@@ -157,9 +162,8 @@ export class TyranoBracketHighlightProvider implements vscode.DocumentHighlightP
         }
       }
     } else {
-      // Current is a closer (or intermediate). Search backward to find the opener.
+      // Current is a closer. Search backward to find the opener.
       let depth = 0;
-      const intermediates: vscode.DocumentHighlight[] = [];
 
       for (let i = currentIdx; i >= 0; i--) {
         const n = tagTokens[i].name.toLowerCase();
@@ -176,6 +180,34 @@ export class TyranoBracketHighlightProvider implements vscode.DocumentHighlightP
     }
 
     return highlights.length > 0 ? highlights : null;
+  }
+
+  /**
+   * When the cursor is on an [elsif] or [else], search backward for the
+   * matching [if] (respecting nesting), then delegate to highlightBlockPair
+   * from that opener so the full block (if/elsif/else/endif) is highlighted.
+   */
+  private highlightFromIntermediate(
+    tagTokens: TagNameToken[],
+    current: TagNameToken,
+  ): vscode.DocumentHighlight[] | null {
+    const currentIdx = tagTokens.indexOf(current);
+    if (currentIdx < 0) return null;
+
+    let depth = 0;
+    for (let i = currentIdx - 1; i >= 0; i--) {
+      const n = tagTokens[i].name.toLowerCase();
+      if (n === 'endif') {
+        depth++;
+      } else if (n === 'if') {
+        if (depth === 0) {
+          return this.highlightBlockPair(tagTokens, tagTokens[i]);
+        }
+        depth--;
+      }
+    }
+
+    return null;
   }
 
   /**

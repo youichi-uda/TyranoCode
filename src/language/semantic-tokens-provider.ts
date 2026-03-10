@@ -40,9 +40,6 @@ const KEYWORD_TAGS = new Set([
 /** Variable prefixes that indicate TyranoScript game variables. */
 const VARIABLE_PREFIX_PATTERN = /\b(f|sf|tf|mp)\.\w+/g;
 
-/** Pattern to detect variable assignment (write) contexts. */
-const VARIABLE_WRITE_PATTERN = /\b(f|sf|tf)\.\w+\s*[+\-*\/]?=/;
-
 export class TyranoSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {
   provideDocumentSemanticTokens(
     document: vscode.TextDocument,
@@ -75,8 +72,8 @@ export class TyranoSemanticTokensProvider implements vscode.DocumentSemanticToke
         case 'LABEL':
           builder.push(
             new vscode.Range(
-              new vscode.Position(token.line, token.column),
-              new vscode.Position(token.line, token.column + 1 + token.length),
+              new vscode.Position(token.line, token.column + 1),
+              new vscode.Position(token.line, token.column + 1 + token.value.length),
             ),
             'label',
             [],
@@ -206,7 +203,6 @@ export class TyranoSemanticTokensProvider implements vscode.DocumentSemanticToke
     token: Token,
   ): void {
     const value = token.value;
-    const isWrite = VARIABLE_WRITE_PATTERN.test(value);
 
     // Reset the global regex before using it
     VARIABLE_PREFIX_PATTERN.lastIndex = 0;
@@ -215,7 +211,9 @@ export class TyranoSemanticTokensProvider implements vscode.DocumentSemanticToke
     while ((match = VARIABLE_PREFIX_PATTERN.exec(value)) !== null) {
       const varStart = match.index;
       const varLength = match[0].length;
-      const modifiers = isWrite && varStart === match.index ? ['declaration'] : [];
+      const afterMatch = value.substring(match.index + match[0].length);
+      const isWrite = /^\s*=[^=]/.test(afterMatch);
+      const modifiers = isWrite ? ['declaration'] : [];
 
       builder.push(
         new vscode.Range(

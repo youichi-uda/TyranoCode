@@ -169,7 +169,6 @@ export class TyranoCallHierarchyProvider implements vscode.CallHierarchyProvider
       const entries = index.globalLabels.get(labelName);
       if (entries && entries.length > 0) {
         // Prefer the entry from the current file
-        const currentFile = this.findFileInIndex(document.uri, index);
         const entry = entries.find(e => this.isSameUri(e.file, document.uri)) ?? entries[0];
         return createItemForLabel(entry.node, entry.file);
       }

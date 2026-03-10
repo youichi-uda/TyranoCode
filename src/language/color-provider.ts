@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Parser } from '../parser/parser';
-import { ScenarioNode, TagNode, TagAttribute } from '../parser/types';
+import { ScenarioNode, TagNode } from '../parser/types';
 import { TAG_DATABASE } from './tag-database';
 
 /** Regex matching TyranoScript hex color values: 0xRRGGBB or 0xAARRGGBB */
@@ -34,8 +34,11 @@ export class TyranoColorProvider implements vscode.DocumentColorProvider {
     const r = Math.round(color.red * 255);
     const g = Math.round(color.green * 255);
     const b = Math.round(color.blue * 255);
+    const a = Math.round(color.alpha * 255);
 
-    const hex = `0x${this.toHex(r)}${this.toHex(g)}${this.toHex(b)}`;
+    const hex = color.alpha < 1
+      ? `0x${this.toHex(a)}${this.toHex(r)}${this.toHex(g)}${this.toHex(b)}`
+      : `0x${this.toHex(r)}${this.toHex(g)}${this.toHex(b)}`;
 
     const presentation = new vscode.ColorPresentation(hex);
     presentation.textEdit = new vscode.TextEdit(context.range, hex);

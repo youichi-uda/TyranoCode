@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Parser } from '../parser/parser';
-import { ScenarioNode, LabelNode, CommentNode } from '../parser/types';
+import { ScenarioNode, LabelNode } from '../parser/types';
 
 export class TyranoFoldingProvider implements vscode.FoldingRangeProvider {
 

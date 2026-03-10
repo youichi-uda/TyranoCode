@@ -35,6 +35,7 @@ function toVscodeRange(r: AstRange): vscode.Range {
  * Provides document symbols (outline) for a single TyranoScript file.
  */
 export class TyranoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+  // getIndex is injected for consistency with other providers and future use.
   constructor(private getIndex: () => ProjectIndex | undefined) {}
 
   provideDocumentSymbols(

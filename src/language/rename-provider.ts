@@ -129,10 +129,17 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     for (const token of tokens) {
       if (token.type === 'EOF' || token.type === 'NEWLINE') continue;
 
-      const tokenStartCol = token.type === 'LABEL' ? token.column : token.column;
-      const tokenEndCol = token.type === 'LABEL'
-        ? token.column + 1 + token.value.length  // +1 for the * prefix
-        : token.column + token.value.length;
+      const tokenStartCol = token.column;
+      let tokenEndCol: number;
+      if (token.type === 'LABEL') {
+        tokenEndCol = token.column + 1 + token.value.length;  // +1 for the * prefix
+      } else if (token.type === 'ATTR_VALUE') {
+        // The scanner sets column at the opening quote and value is unquoted,
+        // so the full span including quotes is value.length + 2.
+        tokenEndCol = token.column + token.value.length + 2;
+      } else {
+        tokenEndCol = token.column + token.value.length;
+      }
 
       if (
         token.line === position.line &&

@@ -27,6 +27,7 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
     ['movie',      { dirs: ['data/video'],      extensions: ['mp4', 'webm', 'ogv'] }],
     ['bgmovie',    { dirs: ['data/video'],      extensions: ['mp4', 'webm', 'ogv'] }],
     ['loadcss',    { dirs: ['data/others'],     extensions: ['css'] }],
+    ['loadjs',     { dirs: ['data/others'],     extensions: ['js'] }],
   ]);
 
   constructor(private getIndex: () => ProjectIndex | undefined) {}

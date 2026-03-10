@@ -36,7 +36,7 @@ export class VariableTreeDataProvider implements vscode.TreeDataProvider<TreeEle
   private _onDidChangeTreeData = new vscode.EventEmitter<TreeElement | undefined | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private readonly getIndex: () => ProjectIndex) {}
+  constructor(private readonly getIndex: () => ProjectIndex | undefined) {}
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
@@ -73,6 +73,7 @@ export class VariableTreeDataProvider implements vscode.TreeDataProvider<TreeEle
    */
   private getRootElements(): TreeElement[] {
     const index = this.getIndex();
+    if (!index) return [];
     const scopesWithVars = new Set<VariableScope>();
 
     for (const infos of index.variables.values()) {
@@ -92,6 +93,7 @@ export class VariableTreeDataProvider implements vscode.TreeDataProvider<TreeEle
    */
   private getVariablesForScope(scope: VariableScope): TreeElement[] {
     const index = this.getIndex();
+    if (!index) return [];
     const variableMap = new Map<string, VariableInfo[]>();
 
     for (const [fullName, infos] of index.variables) {
@@ -177,7 +179,7 @@ export class VariableTreeDataProvider implements vscode.TreeDataProvider<TreeEle
  */
 export function registerVariableTracker(
   context: vscode.ExtensionContext,
-  getIndex: () => ProjectIndex,
+  getIndex: () => ProjectIndex | undefined,
 ): VariableTreeDataProvider {
   const treeDataProvider = new VariableTreeDataProvider(getIndex);
 
