@@ -8,6 +8,27 @@ import { TAG_DATABASE, TagDef } from './tag-database';
 import { ProjectIndex } from '../parser/types';
 
 export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
+  /**
+   * Maps tag names to the project-relative directories (under data/) and file
+   * extensions that should be suggested for their storage= (or file=) attribute.
+   */
+  private static readonly RESOURCE_DIRS: ReadonlyMap<string, { dirs: string[]; extensions: string[] }> = new Map([
+    ['jump',       { dirs: ['data/scenario'],  extensions: ['ks'] }],
+    ['call',       { dirs: ['data/scenario'],  extensions: ['ks'] }],
+    ['bg',         { dirs: ['data/bgimage'],   extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    ['image',      { dirs: ['data/image', 'data/fgimage'], extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    ['chara_new',  { dirs: ['data/fgimage'],   extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    ['chara_face', { dirs: ['data/fgimage'],   extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    ['chara_mod',  { dirs: ['data/fgimage'],   extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    ['playbgm',    { dirs: ['data/bgm'],       extensions: ['mp3', 'ogg', 'wav', 'm4a'] }],
+    ['fadeinbgm',  { dirs: ['data/bgm'],       extensions: ['mp3', 'ogg', 'wav', 'm4a'] }],
+    ['playse',     { dirs: ['data/sound'],      extensions: ['mp3', 'ogg', 'wav', 'm4a'] }],
+    ['fadeinse',   { dirs: ['data/sound'],      extensions: ['mp3', 'ogg', 'wav', 'm4a'] }],
+    ['movie',      { dirs: ['data/video'],      extensions: ['mp4', 'webm', 'ogv'] }],
+    ['bgmovie',    { dirs: ['data/video'],      extensions: ['mp4', 'webm', 'ogv'] }],
+    ['loadcss',    { dirs: ['data/others'],     extensions: ['css'] }],
+  ]);
+
   constructor(private getIndex: () => ProjectIndex | undefined) {}
 
   provideCompletionItems(
@@ -15,7 +36,7 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
     position: vscode.Position,
     _token: vscode.CancellationToken,
     _context: vscode.CompletionContext,
-  ): vscode.CompletionItem[] {
+  ): vscode.ProviderResult<vscode.CompletionItem[]> {
     const line = document.lineAt(position).text;
     const textBefore = line.substring(0, position.character);
 
@@ -41,6 +62,12 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
       const tagNameMatch = insideTag.match(/^(\w+)/);
       if (!tagNameMatch) return [];
       const tagName = tagNameMatch[1].toLowerCase();
+
+      // Check if we're inside a storage= or file= attribute value — offer resource file completions
+      const resourceAttrMatch = textBefore.match(/(?:storage|file)=["']([^"']*)$/);
+      if (resourceAttrMatch) {
+        return this.completeResourceFiles(tagName, resourceAttrMatch[1]);
+      }
 
       // Check if we're completing an attribute value (after =)
       const attrValueMatch = textBefore.match(/(\w+)=["']?([^"'\s]*)$/);
@@ -184,13 +211,61 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
     return items;
   }
 
+  /**
+   * Asynchronously list resource files from the project directory that match
+   * the given tag's expected resource type and return them as CompletionItems.
+   */
+  private async completeResourceFiles(
+    tagName: string,
+    currentValue: string,
+  ): Promise<vscode.CompletionItem[]> {
+    const resourceInfo = TyranoCompletionProvider.RESOURCE_DIRS.get(tagName);
+    if (!resourceInfo) return [];
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) return [];
+
+    const items: vscode.CompletionItem[] = [];
+    const seen = new Set<string>();
+
+    for (const dir of resourceInfo.dirs) {
+      const extGlob = resourceInfo.extensions.length === 1
+        ? resourceInfo.extensions[0]
+        : `{${resourceInfo.extensions.join(',')}}`;
+      const pattern = new vscode.RelativePattern(
+        workspaceFolders[0],
+        `${dir}/**/*.${extGlob}`,
+      );
+
+      const files = await vscode.workspace.findFiles(pattern);
+
+      for (const fileUri of files) {
+        const fileName = fileUri.path.split('/').pop() ?? '';
+        if (!fileName) continue;
+        if (seen.has(fileName)) continue;
+        seen.add(fileName);
+
+        // Filter by what the user has typed so far
+        if (currentValue && !fileName.toLowerCase().startsWith(currentValue.toLowerCase())) {
+          continue;
+        }
+
+        const item = new vscode.CompletionItem(fileName, vscode.CompletionItemKind.File);
+        item.detail = dir;
+        items.push(item);
+      }
+    }
+
+    return items;
+  }
+
   private completeFileReferences(
     tagDef: TagDef,
     attrName: string,
     document: vscode.TextDocument,
   ): vscode.CompletionItem[] {
-    // This will be populated by the workspace file scanner
-    // For now, return empty — the file scanner runs asynchronously
+    // Retained for paramDef.type === 'file' fallback; resource completion is
+    // handled by completeResourceFiles() which is invoked earlier in the chain.
     return [];
   }
 

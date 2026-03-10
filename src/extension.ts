@@ -25,6 +25,11 @@ import { TyranoCompletionProvider } from './language/completion-provider';
 import { TyranoHoverProvider } from './language/hover-provider';
 import { TyranoDiagnosticsProvider, DiagnosticsConfig } from './language/diagnostics';
 import { TyranoDefinitionProvider, TyranoReferenceProvider } from './language/definition-provider';
+import { TyranoDocumentSymbolProvider, TyranoWorkspaceSymbolProvider } from './language/symbol-provider';
+import { TyranoLinkProvider } from './language/link-provider';
+import { TyranoColorProvider } from './language/color-provider';
+import { TyranoFoldingProvider } from './language/folding-provider';
+import { TyranoSignatureProvider } from './language/signature-provider';
 import { ProjectIndexer } from './analyzer/project-indexer';
 import { LicenseManager } from './license/license-manager';
 import { FlowGraphProvider } from './flow-graph/flow-graph-provider';
@@ -92,6 +97,54 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerReferenceProvider(
       { language: LANGUAGE_ID },
       new TyranoReferenceProvider(getIndex),
+    ),
+  );
+
+  // Document symbols (Outline / Breadcrumb)
+  context.subscriptions.push(
+    vscode.languages.registerDocumentSymbolProvider(
+      { language: LANGUAGE_ID },
+      new TyranoDocumentSymbolProvider(getIndex),
+    ),
+  );
+
+  // Workspace symbols (Ctrl+T)
+  context.subscriptions.push(
+    vscode.languages.registerWorkspaceSymbolProvider(
+      new TyranoWorkspaceSymbolProvider(getIndex),
+    ),
+  );
+
+  // Document links (clickable file references)
+  context.subscriptions.push(
+    vscode.languages.registerDocumentLinkProvider(
+      { language: LANGUAGE_ID },
+      new TyranoLinkProvider(),
+    ),
+  );
+
+  // Color decorators
+  context.subscriptions.push(
+    vscode.languages.registerColorProvider(
+      { language: LANGUAGE_ID },
+      new TyranoColorProvider(),
+    ),
+  );
+
+  // Code folding
+  context.subscriptions.push(
+    vscode.languages.registerFoldingRangeProvider(
+      { language: LANGUAGE_ID },
+      new TyranoFoldingProvider(),
+    ),
+  );
+
+  // Signature help (parameter hints)
+  context.subscriptions.push(
+    vscode.languages.registerSignatureHelpProvider(
+      { language: LANGUAGE_ID },
+      new TyranoSignatureProvider(),
+      ' ',
     ),
   );
 

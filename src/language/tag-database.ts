@@ -57,6 +57,8 @@ def({
     { name: 'storage', type: 'file', required: false, description: 'Scenario file containing the subroutine.' },
     { name: 'target', type: 'string', required: false, description: 'Label name of the subroutine.' },
     { name: 'cond', type: 'expression', required: false, description: 'Condition expression.' },
+    { name: 'auto_next', type: 'boolean', required: false, description: 'Automatically proceed to next tag.' },
+    { name: 'countpage', type: 'boolean', required: false, description: 'Count pages in subroutine.' },
   ],
 });
 
@@ -207,6 +209,7 @@ def({
   params: [
     { name: 'exp', type: 'expression', required: true, description: 'JavaScript expression to evaluate.' },
     { name: 'cond', type: 'expression', required: false, description: 'Condition expression.' },
+    { name: 'next', type: 'boolean', required: false, description: 'Proceed to next tag.' },
   ],
 });
 
@@ -215,7 +218,9 @@ def({
   category: 'script',
   description: 'Clear all game variables (f. scope).',
   descriptionJa: 'すべてのゲーム変数（f.スコープ）をクリアします。',
-  params: [],
+  params: [
+    { name: 'exp', type: 'expression', required: false, description: 'Expression to control clearing behavior.' },
+  ],
 });
 
 def({
@@ -304,6 +309,7 @@ def({
     { name: 'border_color', type: 'color', required: false, description: 'Border color.' },
     { name: 'margin', type: 'number', required: false, description: 'Margin for all sides (px).' },
     { name: 'gradient', type: 'string', required: false, description: 'CSS gradient for background.' },
+    { name: 'next', type: 'boolean', required: false, description: 'Auto-advance after applying position settings.' },
   ],
 });
 
@@ -324,6 +330,7 @@ def({
     { name: 'effect', type: 'string', required: false, description: 'Text effect.' },
     { name: 'effect_speed', type: 'string', required: false, description: 'Text effect speed.' },
     { name: 'gradient', type: 'string', required: false, description: 'CSS gradient for text.' },
+    { name: 'edge_method', type: 'string', required: false, description: 'Edge rendering method.' },
   ],
 });
 
@@ -341,7 +348,7 @@ def({
   description: 'Set text display speed.',
   descriptionJa: 'テキスト表示速度を設定します。',
   params: [
-    { name: 'speed', type: 'number', required: true, description: 'Delay per character in ms. 0=instant.' },
+    { name: 'speed', type: 'number', required: false, description: 'Delay per character in ms. 0=instant.' },
   ],
 });
 
@@ -387,6 +394,8 @@ def({
     { name: 'height', type: 'number', required: false, description: 'Image height.' },
     { name: 'reflect', type: 'boolean', required: false, description: 'Mirror the image horizontally.' },
     { name: 'is_show', type: 'boolean', required: false, description: 'Whether to show the character immediately.' },
+    { name: 'fuki', type: 'string', required: false, description: 'Speech bubble settings.' },
+    { name: 'map_face', type: 'string', required: false, description: 'Face map configuration.' },
   ],
 });
 
@@ -484,6 +493,7 @@ def({
     { name: 'wait', type: 'boolean', required: false, default: 'true', description: 'Wait for transition to complete.' },
     { name: 'color', type: 'color', required: false, description: 'Background color (if no image).' },
     { name: 'cross', type: 'boolean', required: false, default: 'true', description: 'Use cross-fade transition.' },
+    { name: 'position', type: 'string', required: false, description: 'Background position (CSS value).' },
   ],
 });
 
@@ -501,6 +511,8 @@ def({
     { name: 'top', type: 'number', required: false, description: 'Top position.' },
     { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
     { name: 'page', type: 'enum', required: false, enumValues: ['fore', 'back'], description: 'Page (fore or back).' },
+    { name: 'autohide', type: 'boolean', required: false, description: 'Automatically hide layer when empty.' },
+    { name: 'index', type: 'number', required: false, description: 'Z-index of the layer.' },
   ],
 });
 
@@ -510,7 +522,7 @@ def({
   description: 'Display an image on a layer.',
   descriptionJa: 'レイヤーに画像を表示します。',
   params: [
-    { name: 'storage', type: 'file', required: true, description: 'Image file.' },
+    { name: 'storage', type: 'file', required: false, description: 'Image file.' },
     { name: 'layer', type: 'string', required: false, default: '0', description: 'Target layer.' },
     { name: 'page', type: 'enum', required: false, default: 'fore', enumValues: ['fore', 'back'], description: 'Page.' },
     { name: 'left', type: 'number', required: false, default: '0', description: 'Left position.' },
@@ -529,6 +541,12 @@ def({
     { name: 'reflect', type: 'boolean', required: false, description: 'Mirror the image horizontally.' },
     { name: 'pos', type: 'string', required: false, description: 'Position preset name.' },
     { name: 'animimg', type: 'boolean', required: false, description: 'Whether to use animated image.' },
+    { name: 'activeimg', type: 'file', required: false, description: 'Image displayed when active.' },
+    { name: 'auto_next', type: 'boolean', required: false, description: 'Auto-advance to next action.' },
+    { name: 'autoimg', type: 'file', required: false, description: 'Image displayed during auto mode.' },
+    { name: 'ext', type: 'string', required: false, description: 'File extension override.' },
+    { name: 'savesnap', type: 'boolean', required: false, description: 'Include in save snapshot.' },
+    { name: 'skipimg', type: 'file', required: false, description: 'Image displayed during skip mode.' },
   ],
 });
 
@@ -565,6 +583,9 @@ def({
     { name: 'restart', type: 'boolean', required: false, description: 'Restart from beginning if already playing.' },
     { name: 'fadein', type: 'boolean', required: false, description: 'Enable fade-in effect.' },
     { name: 'stop', type: 'boolean', required: false, description: 'Stop currently playing BGM first.' },
+    { name: 'base64', type: 'string', required: false, description: 'Base64-encoded audio data.' },
+    { name: 'click', type: 'boolean', required: false, description: 'Play on click.' },
+    { name: 'target', type: 'string', required: false, description: 'Target element.' },
   ],
 });
 
@@ -579,6 +600,7 @@ def({
     { name: 'fadeout', type: 'boolean', required: false, description: 'Use fade-out effect when stopping.' },
     { name: 'buf_all', type: 'boolean', required: false, description: 'Stop all audio buffers.' },
     { name: 'stop', type: 'boolean', required: false, description: 'Force stop playback.' },
+    { name: 'target', type: 'string', required: false, description: 'Target element.' },
   ],
 });
 
@@ -590,6 +612,9 @@ def({
   params: [
     { name: 'time', type: 'number', required: false, default: '2000', description: 'Fade-out time (ms).' },
     { name: 'buf', type: 'number', required: false, default: '0', description: 'Audio buffer number.' },
+    { name: 'fadeout', type: 'boolean', required: false, description: 'Enable fade-out effect.' },
+    { name: 'loop', type: 'boolean', required: false, description: 'Loop playback.' },
+    { name: 'storage', type: 'file', required: false, description: 'Audio file.' },
   ],
 });
 
@@ -608,6 +633,7 @@ def({
     { name: 'html5', type: 'boolean', required: false, description: 'Use HTML5 audio mode.' },
     { name: 'pause', type: 'boolean', required: false, description: 'Pause playback instead of stopping.' },
     { name: 'seek', type: 'number', required: false, description: 'Seek position in ms.' },
+    { name: 'fadein', type: 'boolean', required: false, description: 'Enable fade-in effect.' },
   ],
 });
 
@@ -637,6 +663,8 @@ def({
     { name: 'buf', type: 'number', required: false, default: '0', description: 'SE buffer number.' },
     { name: 'time', type: 'number', required: false, description: 'Fade-out time (ms).' },
     { name: 'fadeout', type: 'boolean', required: false, description: 'Use fade-out effect when stopping.' },
+    { name: 'storage', type: 'file', required: false, description: 'Audio file.' },
+    { name: 'target', type: 'string', required: false, description: 'Target element.' },
   ],
 });
 
@@ -708,8 +736,8 @@ def({
   descriptionJa: 'ページトランジションを実行します。',
   params: [
     { name: 'method', type: 'string', required: false, default: 'crossfade', description: 'Transition method.' },
-    { name: 'time', type: 'number', required: false, default: '1000', description: 'Transition time (ms).' },
-    { name: 'layer', type: 'string', required: false, default: 'base', description: 'Target layer.' },
+    { name: 'time', type: 'number', required: true, default: '1000', description: 'Transition time (ms).' },
+    { name: 'layer', type: 'string', required: true, default: 'base', description: 'Target layer.' },
     { name: 'wait', type: 'boolean', required: false, default: 'true', description: 'Wait for transition to complete.' },
     { name: 'rule', type: 'string', required: false, description: 'Rule image for transition.' },
     { name: 'vague', type: 'number', required: false, description: 'Edge softness for rule transition.' },
@@ -724,13 +752,14 @@ def({
   descriptionJa: '画面揺れ効果。',
   params: [
     { name: 'count', type: 'number', required: false, default: '10', description: 'Number of shakes.' },
-    { name: 'time', type: 'number', required: false, default: '100', description: 'Duration per shake (ms).' },
+    { name: 'time', type: 'number', required: true, default: '100', description: 'Duration per shake (ms).' },
     { name: 'hmax', type: 'number', required: false, default: '10', description: 'Max horizontal displacement.' },
     { name: 'vmax', type: 'number', required: false, default: '10', description: 'Max vertical displacement.' },
     { name: 'wait', type: 'boolean', required: false, default: 'true', description: 'Wait for effect to complete.' },
     { name: 'hsize', type: 'number', required: false, description: 'Horizontal shake size.' },
     { name: 'vsize', type: 'number', required: false, description: 'Vertical shake size.' },
     { name: 'power', type: 'number', required: false, description: 'Shake power intensity.' },
+    { name: 'timemode', type: 'string', required: false, description: 'Time calculation mode.' },
   ],
 });
 
@@ -764,6 +793,13 @@ def({
     { name: 'leavese', type: 'file', required: false, description: 'Sound effect on mouse leave.', descriptionJa: 'マウスリーブ時のSE' },
     { name: 'hint', type: 'string', required: false, description: 'Tooltip text on hover.', descriptionJa: 'ホバー時のツールチップ' },
     { name: 'preexp', type: 'expression', required: false, description: 'Pre-evaluated expression available as "preexp" in exp.', descriptionJa: 'exp内でpreexpとして参照可能な事前評価式' },
+    { name: 'activeimg', type: 'file', required: false, description: 'Image displayed when button is active.' },
+    { name: 'auto_next', type: 'boolean', required: false, description: 'Auto-advance to next action.' },
+    { name: 'autoimg', type: 'file', required: false, description: 'Image displayed during auto mode.' },
+    { name: 'ext', type: 'string', required: false, description: 'File extension override.' },
+    { name: 'savesnap', type: 'boolean', required: false, description: 'Include in save snapshot.' },
+    { name: 'skipimg', type: 'file', required: false, description: 'Image displayed during skip mode.' },
+    { name: 'visible', type: 'boolean', required: false, description: 'Button visibility.' },
   ],
 });
 
@@ -776,7 +812,7 @@ def({
     { name: 'color', type: 'color', required: false, description: 'Background color.' },
     { name: 'storage', type: 'file', required: false, description: 'Jump target file.' },
     { name: 'target', type: 'string', required: false, description: 'Jump target label.' },
-    { name: 'text', type: 'string', required: true, description: 'Display text.' },
+    { name: 'text', type: 'string', required: false, description: 'Display text.' },
     { name: 'size', type: 'number', required: false, description: 'Font size.' },
     { name: 'x', type: 'number', required: false, description: 'X position.' },
     { name: 'y', type: 'number', required: false, description: 'Y position.' },
@@ -794,6 +830,13 @@ def({
     { name: 'hint', type: 'string', required: false, description: 'Tooltip text on hover.' },
     { name: 'font_color', type: 'color', required: false, description: 'Font color.' },
     { name: 'border_color', type: 'color', required: false, description: 'Border color.' },
+    { name: 'bold', type: 'boolean', required: false, description: 'Bold text.' },
+    { name: 'cm', type: 'boolean', required: false, description: 'Clear message before jump.' },
+    { name: 'hold', type: 'boolean', required: false, description: 'Hold link display after click.' },
+    { name: 'leavese', type: 'file', required: false, description: 'Sound effect on mouse leave.' },
+    { name: 'name', type: 'string', required: false, description: 'Element name.' },
+    { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
+    { name: 'preexp', type: 'expression', required: false, description: 'Pre-evaluated expression.' },
   ],
 });
 
@@ -808,6 +851,7 @@ def({
     { name: 'target', type: 'string', required: false, description: 'Jump target label.' },
     { name: 'exp', type: 'expression', required: false, description: 'JS expression on click.' },
     { name: 'keyfocus', type: 'string', required: false, description: 'Keyboard focus order number.' },
+    { name: 'once', type: 'boolean', required: false, description: 'Allow only one click.' },
   ],
 });
 
@@ -932,6 +976,7 @@ def({
     { name: 'top', type: 'number', required: false, description: 'Top position.' },
     { name: 'width', type: 'number', required: false, description: 'Video width.' },
     { name: 'height', type: 'number', required: false, description: 'Video height.' },
+    { name: 'bgmode', type: 'boolean', required: false, description: 'Play video as background mode.' },
   ],
 });
 
@@ -964,6 +1009,7 @@ def({
     { name: 'storage', type: 'file', required: false, description: 'Scenario to run while game is paused.' },
     { name: 'name', type: 'string', required: false, description: 'Name identifier for the sleep state.' },
     { name: 'target', type: 'string', required: false, description: 'Label to jump to in the paused scenario.' },
+    { name: 'next', type: 'boolean', required: false, description: 'Proceed to next tag.' },
   ],
 });
 
@@ -974,10 +1020,13 @@ def({
   descriptionJa: '一時停止したゲームを再開します。',
   params: [
     { name: 'name', type: 'string', required: false, description: 'Name identifier of the sleep state to resume.' },
+    { name: 'bgm_over', type: 'boolean', required: false, description: 'Carry over BGM state.' },
+    { name: 'sound_opt_over', type: 'boolean', required: false, description: 'Carry over sound options.' },
+    { name: 'variable_over', type: 'boolean', required: false, description: 'Carry over variables.' },
   ],
 });
 
-// ────────────────────────── Name (speaker) ──────────────────────────
+// ────────────────────────── Name (speaker) / ptext / mtext ──────────────────────────
 
 def({
   name: 'ptext',
@@ -986,12 +1035,12 @@ def({
   descriptionJa: 'レイヤー上にテキストを直接表示します。',
   params: [
     { name: 'name', type: 'string', required: false, description: 'Element name.' },
-    { name: 'text', type: 'string', required: true, description: 'Text to display.' },
-    { name: 'layer', type: 'string', required: false, description: 'Target layer.' },
+    { name: 'text', type: 'string', required: false, description: 'Text to display.' },
+    { name: 'layer', type: 'string', required: true, description: 'Target layer.' },
     { name: 'page', type: 'enum', required: false, default: 'fore', enumValues: ['fore', 'back'], description: 'Page.' },
     { name: 'face', type: 'string', required: false, description: 'Font family.' },
-    { name: 'x', type: 'number', required: false, description: 'X position.' },
-    { name: 'y', type: 'number', required: false, description: 'Y position.' },
+    { name: 'x', type: 'number', required: true, description: 'X position.' },
+    { name: 'y', type: 'number', required: true, description: 'Y position.' },
     { name: 'size', type: 'number', required: false, description: 'Font size (px).' },
     { name: 'color', type: 'color', required: false, description: 'Text color.' },
     { name: 'bold', type: 'boolean', required: false, description: 'Bold text.' },
@@ -1002,6 +1051,8 @@ def({
     { name: 'overwrite', type: 'boolean', required: false, description: 'Overwrite existing text element with same name.' },
     { name: 'vertical', type: 'boolean', required: false, description: 'Vertical text mode.' },
     { name: 'zindex', type: 'number', required: false, description: 'Z-index.' },
+    { name: 'align', type: 'string', required: false, description: 'Text alignment.' },
+    { name: 'time', type: 'number', required: false, description: 'Fade-in time (ms).' },
   ],
 });
 
