@@ -28,12 +28,16 @@ import { TyranoDefinitionProvider, TyranoReferenceProvider } from './language/de
 import { ProjectIndexer } from './analyzer/project-indexer';
 import { LicenseManager } from './license/license-manager';
 import { FlowGraphProvider } from './flow-graph/flow-graph-provider';
+import { registerExtendedTags } from './language/tag-database-ext';
 import { TestRunner } from './test-runner/test-runner';
 
 const LANGUAGE_ID = 'tyranoscript';
 
 export function activate(context: vscode.ExtensionContext): void {
   console.log('TyranoCode activating...');
+
+  // ── Register extended tag database ──
+  registerExtendedTags();
 
   // ── Core services ──
   const licenseManager = new LicenseManager();
@@ -96,8 +100,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const analyzeDocument = (document: vscode.TextDocument) => {
     if (document.languageId !== LANGUAGE_ID) return;
-    diagnostics.analyzeDocument(document);
     indexer.indexDocument(document);
+    diagnostics.analyzeDocument(document);
   };
 
   // Analyze open documents on activation

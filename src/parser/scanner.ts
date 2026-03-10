@@ -138,13 +138,33 @@ export class Scanner {
 
     this.skipWhitespaceInline();
 
-    // Tag name
+    // Tag name (may start with # for speaker name or / for closing tags)
     let tagName = '';
     const nameStartCol = this.column;
-    while (this.pos < this.source.length && /[\w_]/.test(this.peek())) {
-      tagName += this.peek();
+
+    if (this.peek() === '#') {
+      // Speaker name tag: [#name] or [#]
+      tagName += '#';
       this.advance();
+      while (this.pos < this.source.length && /[\w_]/.test(this.peek())) {
+        tagName += this.peek();
+        this.advance();
+      }
+    } else if (this.peek() === '/') {
+      // Closing tag: [/ruby], [/b], etc.
+      tagName += '/';
+      this.advance();
+      while (this.pos < this.source.length && /[\w_]/.test(this.peek())) {
+        tagName += this.peek();
+        this.advance();
+      }
+    } else {
+      while (this.pos < this.source.length && /[\w_]/.test(this.peek())) {
+        tagName += this.peek();
+        this.advance();
+      }
     }
+
     if (tagName) {
       this.emitTokenAt('TAG_NAME', tagName, this.line, nameStartCol);
     }

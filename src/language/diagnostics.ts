@@ -120,6 +120,11 @@ export class TyranoDiagnosticsProvider {
     const tagDef = TAG_DATABASE.get(node.name);
     const index = this.getIndex();
 
+    // Speaker name tags ([#name], [#]) and closing tags ([/ruby]) are built-in syntax
+    if (node.name.startsWith('#') || node.name.startsWith('/')) {
+      return;
+    }
+
     // Unknown tag — could be a macro
     if (!tagDef) {
       if (config.undefinedMacro && index && !index.globalMacros.has(node.name)) {
@@ -167,8 +172,10 @@ export class TyranoDiagnosticsProvider {
 
       if (targetAttr?.value) {
         const labelName = targetAttr.value.replace(/^\*/, '');
-        // Only check labels in the same file if no storage is specified
-        if (!storageAttr?.value) {
+        // Skip dynamic label references (& prefix = runtime variable)
+        if (labelName.startsWith('&')) {
+          // Dynamic label — cannot validate statically
+        } else if (!storageAttr?.value) {
           const labels = index.globalLabels.get(labelName);
           if (!labels || labels.length === 0) {
             diagnostics.push(
@@ -232,7 +239,8 @@ export class TyranoDiagnosticsProvider {
     const index = this.getIndex();
     if (index) {
       const existing = index.globalMacros.get(node.name);
-      if (existing && existing.file !== document.fileName) {
+      const currentFile = vscode.workspace.asRelativePath(document.uri);
+      if (existing && existing.file !== currentFile) {
         diagnostics.push(
           new vscode.Diagnostic(
             toVscRange(node.nameRange),

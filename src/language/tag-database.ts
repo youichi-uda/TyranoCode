@@ -287,6 +287,19 @@ def({
     { name: 'height', type: 'number', required: false, description: 'Height (px).' },
     { name: 'page', type: 'enum', required: false, enumValues: ['fore', 'back'], description: 'Page (fore or back).' },
     { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
+    { name: 'margint', type: 'number', required: false, description: 'Top margin inside the message window (px).', descriptionJa: 'メッセージウィンドウ内の上マージン' },
+    { name: 'marginl', type: 'number', required: false, description: 'Left margin inside the message window (px).', descriptionJa: 'メッセージウィンドウ内の左マージン' },
+    { name: 'marginr', type: 'number', required: false, description: 'Right margin inside the message window (px).', descriptionJa: 'メッセージウィンドウ内の右マージン' },
+    { name: 'marginb', type: 'number', required: false, description: 'Bottom margin inside the message window (px).', descriptionJa: 'メッセージウィンドウ内の下マージン' },
+    { name: 'frame', type: 'file', required: false, description: 'Background image for the message window.', descriptionJa: 'メッセージウィンドウの背景画像' },
+    { name: 'color', type: 'color', required: false, description: 'Background color of the message window.' },
+    { name: 'vertical', type: 'boolean', required: false, description: 'Vertical text mode.', descriptionJa: '縦書きモード' },
+    { name: 'visible', type: 'boolean', required: false, description: 'Message window visibility.' },
+    { name: 'radius', type: 'number', required: false, description: 'Border radius (px).' },
+    { name: 'border_size', type: 'number', required: false, description: 'Border width (px).' },
+    { name: 'border_color', type: 'color', required: false, description: 'Border color.' },
+    { name: 'margin', type: 'number', required: false, description: 'Margin for all sides (px).' },
+    { name: 'gradient', type: 'string', required: false, description: 'CSS gradient for background.' },
   ],
 });
 
@@ -302,7 +315,11 @@ def({
     { name: 'bold', type: 'boolean', required: false, description: 'Bold text.' },
     { name: 'italic', type: 'boolean', required: false, description: 'Italic text.' },
     { name: 'edge', type: 'color', required: false, description: 'Text edge/shadow color.' },
+    { name: 'edgecolor', type: 'color', required: false, description: 'Text edge color (alias for edge).' },
     { name: 'shadow', type: 'color', required: false, description: 'Text shadow color.' },
+    { name: 'effect', type: 'string', required: false, description: 'Text effect.' },
+    { name: 'effect_speed', type: 'string', required: false, description: 'Text effect speed.' },
+    { name: 'gradient', type: 'string', required: false, description: 'CSS gradient for text.' },
   ],
 });
 
@@ -403,9 +420,13 @@ def({
   descriptionJa: 'キャラクターの画像を変更します（表情変更）。',
   params: [
     { name: 'name', type: 'string', required: true, description: 'Character ID.' },
-    { name: 'storage', type: 'file', required: true, description: 'New image file.' },
+    { name: 'storage', type: 'file', required: false, description: 'New image file.' },
+    { name: 'face', type: 'string', required: false, description: 'Face name registered with [chara_face].', descriptionJa: '[chara_face]で登録した表情名' },
+    { name: 'reflect', type: 'boolean', required: false, description: 'Mirror the image horizontally.' },
     { name: 'time', type: 'number', required: false, default: '600', description: 'Cross-fade time (ms).' },
+    { name: 'cross', type: 'boolean', required: false, default: 'true', description: 'Use cross-fade transition.' },
     { name: 'wait', type: 'boolean', required: false, default: 'true', description: 'Wait for animation to complete.' },
+    { name: 'next', type: 'boolean', required: false, default: 'true', description: 'Auto-advance after animation.' },
   ],
 });
 
@@ -480,6 +501,9 @@ def({
     { name: 'height', type: 'number', required: false, description: 'Height.' },
     { name: 'name', type: 'string', required: false, description: 'Element name (for animation targeting).' },
     { name: 'visible', type: 'boolean', required: false, default: 'true', description: 'Visibility.' },
+    { name: 'folder', type: 'string', required: false, description: 'Resource folder to search for the image file.', descriptionJa: '画像ファイルを検索するリソースフォルダ' },
+    { name: 'x', type: 'number', required: false, description: 'X position (alias for left).', descriptionJa: 'X座標（leftのエイリアス）' },
+    { name: 'y', type: 'number', required: false, description: 'Y position (alias for top).', descriptionJa: 'Y座標（topのエイリアス）' },
   ],
 });
 
@@ -637,6 +661,10 @@ def({
     { name: 'method', type: 'string', required: false, default: 'crossfade', description: 'Transition method.' },
     { name: 'time', type: 'number', required: false, default: '1000', description: 'Transition time (ms).' },
     { name: 'layer', type: 'string', required: false, default: 'base', description: 'Target layer.' },
+    { name: 'wait', type: 'boolean', required: false, default: 'true', description: 'Wait for transition to complete.' },
+    { name: 'rule', type: 'string', required: false, description: 'Rule image for transition.' },
+    { name: 'vague', type: 'number', required: false, description: 'Edge softness for rule transition.' },
+    { name: 'children', type: 'boolean', required: false, description: 'Apply transition to child elements.' },
   ],
 });
 
@@ -675,6 +703,15 @@ def({
     { name: 'cond', type: 'expression', required: false, description: 'Condition for button visibility.' },
     { name: 'clickse', type: 'file', required: false, description: 'Sound effect on click.' },
     { name: 'enterse', type: 'file', required: false, description: 'Sound effect on hover.' },
+    { name: 'enterimg', type: 'file', required: false, description: 'Image displayed on hover.', descriptionJa: 'マウスオーバー時に表示される画像' },
+    { name: 'folder', type: 'string', required: false, description: 'Resource folder for button images.', descriptionJa: 'ボタン画像のリソースフォルダ' },
+    { name: 'fix', type: 'boolean', required: false, description: 'Fix button position (not affected by scrolling).', descriptionJa: 'ボタンを固定表示にする（スクロールの影響を受けない）' },
+    { name: 'role', type: 'string', required: false, description: 'Built-in system action (e.g., "save", "load", "sleepgame", "close").', descriptionJa: 'システム組み込みアクション' },
+    { name: 'keyfocus', type: 'string', required: false, description: 'Keyboard focus order number.', descriptionJa: 'キーボードフォーカス順序' },
+    { name: 'clickimg', type: 'file', required: false, description: 'Image displayed on click.', descriptionJa: 'クリック時に表示される画像' },
+    { name: 'leavese', type: 'file', required: false, description: 'Sound effect on mouse leave.', descriptionJa: 'マウスリーブ時のSE' },
+    { name: 'hint', type: 'string', required: false, description: 'Tooltip text on hover.', descriptionJa: 'ホバー時のツールチップ' },
+    { name: 'preexp', type: 'expression', required: false, description: 'Pre-evaluated expression available as "preexp" in exp.', descriptionJa: 'exp内でpreexpとして参照可能な事前評価式' },
   ],
 });
 
@@ -855,13 +892,26 @@ def({
 def({
   name: 'ptext',
   category: 'text',
-  description: 'Display text in a named text area.',
-  descriptionJa: '指定テキストエリアにテキストを表示します。',
+  description: 'Display text directly on a layer.',
+  descriptionJa: 'レイヤー上にテキストを直接表示します。',
   params: [
-    { name: 'name', type: 'string', required: true, description: 'Text area name.' },
-    { name: 'face', type: 'file', required: false, description: 'Face graphic file.' },
+    { name: 'name', type: 'string', required: false, description: 'Element name.' },
+    { name: 'text', type: 'string', required: false, description: 'Text to display.' },
+    { name: 'layer', type: 'string', required: false, description: 'Target layer.' },
+    { name: 'page', type: 'enum', required: false, default: 'fore', enumValues: ['fore', 'back'], description: 'Page.' },
+    { name: 'face', type: 'string', required: false, description: 'Font family.' },
     { name: 'x', type: 'number', required: false, description: 'X position.' },
     { name: 'y', type: 'number', required: false, description: 'Y position.' },
+    { name: 'size', type: 'number', required: false, description: 'Font size (px).' },
+    { name: 'color', type: 'color', required: false, description: 'Text color.' },
+    { name: 'bold', type: 'boolean', required: false, description: 'Bold text.' },
+    { name: 'italic', type: 'boolean', required: false, description: 'Italic text.' },
+    { name: 'edge', type: 'color', required: false, description: 'Text edge color.' },
+    { name: 'shadow', type: 'color', required: false, description: 'Text shadow color.' },
+    { name: 'width', type: 'number', required: false, description: 'Text area width.' },
+    { name: 'overwrite', type: 'boolean', required: false, description: 'Overwrite existing text element with same name.' },
+    { name: 'vertical', type: 'boolean', required: false, description: 'Vertical text mode.' },
+    { name: 'zindex', type: 'number', required: false, description: 'Z-index.' },
   ],
 });
 
