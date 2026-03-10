@@ -30,6 +30,7 @@ def({ name: 'deffont', category: 'text', description: 'Set default font attribut
   { name: 'shadow', type: 'color', required: false, description: 'Shadow color or "none".' },
   { name: 'effect', type: 'string', required: false, description: 'Text effect.' },
   { name: 'effect_speed', type: 'string', required: false, description: 'Effect speed.' },
+  { name: 'gradient', type: 'string', required: false, description: 'Gradient definition.' },
 ]});
 
 simple('resetstyle', 'text', 'Reset text style and position.', 'テキストスタイルと位置をリセットします。');
@@ -106,6 +107,11 @@ def({ name: 'mtext', category: 'text', description: 'Display text with animation
   { name: 'name', type: 'string', required: false, description: 'Element name.' },
   { name: 'size', type: 'number', required: false, description: 'Font size.' },
   { name: 'color', type: 'color', required: false, description: 'Text color.' },
+  { name: 'layer', type: 'string', required: false, description: 'Target layer.' },
+  { name: 'wait', type: 'boolean', required: false, description: 'Wait for completion.' },
+  { name: 'face', type: 'string', required: false, description: 'Font face.' },
+  { name: 'bold', type: 'boolean', required: false, description: 'Bold text.' },
+  { name: 'edge', type: 'color', required: false, description: 'Edge color.' },
 ]});
 
 def({ name: 'fuki_start', category: 'text', description: 'Enable speech bubble mode.', descriptionJa: '吹き出しモードを有効にします。', params: [
@@ -116,6 +122,10 @@ def({ name: 'fuki_chara', category: 'text', description: 'Register speech bubble
   { name: 'name', type: 'string', required: true, description: 'Character name.' },
   { name: 'left', type: 'number', required: false, description: 'Bubble X.' },
   { name: 'top', type: 'number', required: false, description: 'Bubble Y.' },
+  { name: 'sippo', type: 'string', required: false, description: 'Tail direction.' },
+  { name: 'sippo_left', type: 'number', required: false, description: 'Tail X offset.' },
+  { name: 'sippo_top', type: 'number', required: false, description: 'Tail Y offset.' },
+  { name: 'max_width', type: 'number', required: false, description: 'Maximum bubble width.' },
 ]});
 
 def({ name: 'emb', category: 'script', description: 'Embed expression result in text.', descriptionJa: '式の評価結果をテキストに埋め込みます。', params: [
@@ -166,6 +176,8 @@ def({ name: 'clickable', category: 'ui', description: 'Define transparent clicka
   { name: 'target', type: 'string', required: false, description: 'Jump label.' },
   { name: 'storage', type: 'file', required: false, description: 'Jump file.' },
   { name: 'exp', type: 'expression', required: false, description: 'JS on click.' },
+  { name: 'color', type: 'string', required: false, description: 'Background color.' },
+  { name: 'opacity', type: 'number', required: false, description: 'Opacity.' },
 ]});
 
 // ══════════════════════════ Character extras ══════════════════════════
@@ -179,6 +191,7 @@ def({ name: 'chara_move', category: 'character', description: 'Move/resize a cha
   { name: 'anim', type: 'boolean', required: false, description: 'Animate movement.' },
   { name: 'time', type: 'number', required: false, default: '600', description: 'Animation duration (ms).' },
   { name: 'wait', type: 'boolean', required: false, default: 'true', description: 'Wait for completion.' },
+  { name: 'effect', type: 'string', required: false, description: 'Transition effect.' },
 ]});
 
 def({ name: 'chara_delete', category: 'character', description: 'Delete character definition.', descriptionJa: 'キャラクター定義を削除します。', params: [
@@ -192,6 +205,14 @@ def({ name: 'chara_config', category: 'character', description: 'Configure chara
   { name: 'memory', type: 'boolean', required: false, description: 'Remember final expression.' },
   { name: 'anim', type: 'boolean', required: false, description: 'Position change animation.' },
   { name: 'talk_focus', type: 'enum', required: false, enumValues: ['brightness', 'blur', 'none'], description: 'Non-speaker effect.' },
+  { name: 'pos_change_time', type: 'number', required: false, description: 'Position change duration (ms).' },
+  { name: 'brightness_value', type: 'number', required: false, description: 'Brightness value for non-speaker.' },
+  { name: 'blur_value', type: 'number', required: false, description: 'Blur value for non-speaker.' },
+  { name: 'talk_anim', type: 'string', required: false, description: 'Speaking animation type.' },
+  { name: 'talk_anim_time', type: 'number', required: false, description: 'Speaking animation duration (ms).' },
+  { name: 'talk_anim_value', type: 'number', required: false, description: 'Speaking animation value.' },
+  { name: 'talk_anim_zoom_rate', type: 'number', required: false, description: 'Speaking animation zoom rate.' },
+  { name: 'effect', type: 'string', required: false, description: 'Transition effect.' },
 ]});
 
 def({ name: 'chara_ptext', category: 'character', description: 'Display character name / change expression.', descriptionJa: 'キャラクター名表示/表情変更。', params: [
@@ -204,6 +225,7 @@ def({ name: 'chara_layer', category: 'character', description: 'Define character
   { name: 'part', type: 'string', required: true, description: 'Part category.' },
   { name: 'id', type: 'string', required: true, description: 'Variation ID.' },
   { name: 'storage', type: 'file', required: false, description: 'Part image.' },
+  { name: 'zindex', type: 'string', required: false, description: 'Layering priority.' },
 ]});
 
 def({ name: 'chara_layer_mod', category: 'character', description: 'Modify character variation definitions.', descriptionJa: 'キャラクター差分定義を変更します。', params: [
@@ -215,6 +237,7 @@ def({ name: 'chara_layer_mod', category: 'character', description: 'Modify chara
 def({ name: 'chara_part', category: 'character', description: 'Change character variation part.', descriptionJa: 'キャラクター差分パーツを変更します。', params: [
   { name: 'name', type: 'string', required: true, description: 'Character name.' },
   { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+  { name: 'allow_storage', type: 'boolean', required: false, description: 'Allow storage parameter.' },
 ]});
 
 def({ name: 'chara_part_reset', category: 'character', description: 'Reset character parts to default.', descriptionJa: 'キャラクターパーツをデフォルトにリセットします。', params: [
@@ -263,6 +286,10 @@ def({ name: 'filter', category: 'transition', description: 'Apply visual filter 
   { name: 'blur', type: 'number', required: false, description: 'Blur radius.' },
   { name: 'brightness', type: 'number', required: false, description: 'Brightness.' },
   { name: 'contrast', type: 'number', required: false, description: 'Contrast.' },
+  { name: 'saturate', type: 'number', required: false, description: 'Saturation.' },
+  { name: 'hue', type: 'number', required: false, description: 'Hue rotation (degrees).' },
+  { name: 'invert', type: 'number', required: false, description: 'Inversion (0-100).' },
+  { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-100).' },
 ]});
 def({ name: 'free_filter', category: 'transition', description: 'Clear filter effect.', descriptionJa: 'フィルターを解除します。', params: [
   { name: 'layer', type: 'string', required: false, description: 'Target layer.' },
@@ -273,6 +300,7 @@ def({ name: 'mask', category: 'transition', description: 'Display screen mask ov
   { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
   { name: 'storage', type: 'file', required: false, description: 'Mask image.' },
   { name: 'time', type: 'number', required: false, description: 'Fade duration (ms).' },
+  { name: 'layer', type: 'string', required: false, description: 'Target layer.' },
 ]});
 def({ name: 'mask_off', category: 'transition', description: 'Remove screen mask.', descriptionJa: 'スクリーンマスクを解除します。', params: [
   { name: 'time', type: 'number', required: false, description: 'Fade-out time (ms).' },
@@ -285,6 +313,8 @@ def({ name: 'layermode', category: 'transition', description: 'Apply composite l
   { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
   { name: 'name', type: 'string', required: false, description: 'Element name.' },
   { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
+  { name: 'left', type: 'number', required: false, description: 'X position.' },
+  { name: 'top', type: 'number', required: false, description: 'Y position.' },
 ]});
 def({ name: 'free_layermode', category: 'transition', description: 'Clear composite layer effect.', descriptionJa: '合成レイヤー効果を解除します。', params: [
   { name: 'time', type: 'number', required: false, description: 'Fade-out time (ms).' },
@@ -296,6 +326,8 @@ def({ name: 'layermode_movie', category: 'transition', description: 'Apply video
   { name: 'mode', type: 'string', required: false, description: 'Blend mode.' },
   { name: 'loop', type: 'boolean', required: false, default: 'true', description: 'Loop.' },
   { name: 'volume', type: 'number', required: false, description: 'Volume (0-100).' },
+  { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+  { name: 'mute', type: 'boolean', required: false, description: 'Mute audio.' },
 ]});
 
 def({ name: 'bgmovie', category: 'video', description: 'Play video as background.', descriptionJa: '動画を背景として再生します。', params: [
@@ -337,6 +369,17 @@ def({ name: 'frame', category: 'animation', description: 'Define keyframe within
   { name: 'rotate', type: 'string', required: false, description: 'Rotation.' },
   { name: 'scale', type: 'number', required: false, description: 'Scale.' },
   { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
+  { name: 'z', type: 'string', required: false, description: 'Z displacement.' },
+  { name: 'rotateX', type: 'string', required: false, description: 'X-axis rotation.' },
+  { name: 'rotateY', type: 'string', required: false, description: 'Y-axis rotation.' },
+  { name: 'rotateZ', type: 'string', required: false, description: 'Z-axis rotation.' },
+  { name: 'scaleX', type: 'number', required: false, description: 'X scale.' },
+  { name: 'scaleY', type: 'number', required: false, description: 'Y scale.' },
+  { name: 'scaleZ', type: 'number', required: false, description: 'Z scale.' },
+  { name: 'skew', type: 'string', required: false, description: 'Skew transform.' },
+  { name: 'skewX', type: 'string', required: false, description: 'X-axis skew.' },
+  { name: 'skewY', type: 'string', required: false, description: 'Y-axis skew.' },
+  { name: 'perspective', type: 'string', required: false, description: 'Perspective distance.' },
 ]});
 
 def({ name: 'stop_kanim', category: 'animation', description: 'Stop keyframe animation.', descriptionJa: 'キーフレームアニメーションを停止します。', params: [
@@ -356,6 +399,16 @@ def({ name: 'xanim', category: 'animation', description: 'Universal animation (a
   { name: 'top', type: 'string', required: false, description: 'Y position.' },
   { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
   { name: 'svg', type: 'string', required: false, description: 'SVG path file.' },
+  { name: 'delay', type: 'number', required: false, description: 'Start delay (ms).' },
+  { name: 'direction', type: 'string', required: false, description: 'Animation direction.' },
+  { name: 'mode', type: 'string', required: false, description: 'Fill mode.' },
+  { name: 'reset', type: 'boolean', required: false, description: 'Reset before animation.' },
+  { name: 'svg_x', type: 'boolean', required: false, description: 'Apply SVG X movement.' },
+  { name: 'svg_y', type: 'boolean', required: false, description: 'Apply SVG Y movement.' },
+  { name: 'svg_rotate', type: 'boolean', required: false, description: 'Apply SVG rotation.' },
+  { name: 'next', type: 'boolean', required: false, description: 'Proceed to next tag.' },
+  { name: 'width', type: 'number', required: false, description: 'Width.' },
+  { name: 'height', type: 'number', required: false, description: 'Height.' },
 ]});
 
 def({ name: 'stop_xanim', category: 'animation', description: 'Stop xanim.', descriptionJa: 'xanimを停止します。', params: [
@@ -388,6 +441,8 @@ def({ name: 'dialog', category: 'system', description: 'Display a dialog box.', 
   { name: 'storage', type: 'file', required: false, description: 'Jump file (confirm).' },
   { name: 'target', type: 'string', required: false, description: 'Jump label (confirm).' },
   { name: 'name', type: 'string', required: false, description: 'Variable name (input).' },
+  { name: 'label_ok', type: 'string', required: false, description: 'OK button label text.' },
+  { name: 'label_ng', type: 'string', required: false, description: 'Cancel button label text.' },
 ]});
 
 def({ name: 'savesnap', category: 'save', description: 'Create save data snapshot.', descriptionJa: 'セーブデータのスナップショットを作成します。', params: [
@@ -425,15 +480,101 @@ def({ name: 'glyph', category: 'system', description: 'Set click-wait indicator 
   { name: 'height', type: 'number', required: false, description: 'Height.' },
 ]});
 
+def({ name: 'glyph_skip', category: 'system', description: 'Set skip-mode indicator image.', descriptionJa: 'スキップモードインジケータ画像を設定します。', params: [
+  { name: 'storage', type: 'file', required: false, description: 'Glyph image file.' },
+  { name: 'x', type: 'number', required: false, description: 'X position.' },
+  { name: 'y', type: 'number', required: false, description: 'Y position.' },
+  { name: 'width', type: 'number', required: false, description: 'Width.' },
+  { name: 'height', type: 'number', required: false, description: 'Height.' },
+]});
+
+def({ name: 'glyph_auto', category: 'system', description: 'Set auto-mode indicator image.', descriptionJa: 'オートモードインジケータ画像を設定します。', params: [
+  { name: 'storage', type: 'file', required: false, description: 'Glyph image file.' },
+  { name: 'x', type: 'number', required: false, description: 'X position.' },
+  { name: 'y', type: 'number', required: false, description: 'Y position.' },
+  { name: 'width', type: 'number', required: false, description: 'Width.' },
+  { name: 'height', type: 'number', required: false, description: 'Height.' },
+]});
+
+def({ name: 'dialog_config', category: 'system', description: 'Configure dialog appearance.', descriptionJa: 'ダイアログの外観を設定します。', params: [
+  { name: 'title_color', type: 'color', required: false, description: 'Title text color.' },
+  { name: 'bg_color', type: 'color', required: false, description: 'Background color.' },
+  { name: 'text_color', type: 'color', required: false, description: 'Body text color.' },
+  { name: 'border_color', type: 'color', required: false, description: 'Border color.' },
+  { name: 'border_radius', type: 'number', required: false, description: 'Border radius.' },
+  { name: 'font_size', type: 'number', required: false, description: 'Font size.' },
+  { name: 'font_face', type: 'string', required: false, description: 'Font family.' },
+]});
+
+def({ name: 'dialog_config_ok', category: 'system', description: 'Configure dialog OK button.', descriptionJa: 'ダイアログOKボタンを設定します。', params: [
+  { name: 'text', type: 'string', required: false, description: 'Button label.' },
+  { name: 'color', type: 'color', required: false, description: 'Text color.' },
+  { name: 'bg_color', type: 'color', required: false, description: 'Background color.' },
+  { name: 'border_color', type: 'color', required: false, description: 'Border color.' },
+]});
+
+def({ name: 'dialog_config_ng', category: 'system', description: 'Configure dialog Cancel button.', descriptionJa: 'ダイアログキャンセルボタンを設定します。', params: [
+  { name: 'text', type: 'string', required: false, description: 'Button label.' },
+  { name: 'color', type: 'color', required: false, description: 'Text color.' },
+  { name: 'bg_color', type: 'color', required: false, description: 'Background color.' },
+  { name: 'border_color', type: 'color', required: false, description: 'Border color.' },
+]});
+
+def({ name: 'dialog_config_filter', category: 'system', description: 'Configure dialog background filter.', descriptionJa: 'ダイアログ背景フィルターを設定します。', params: [
+  { name: 'blur', type: 'number', required: false, description: 'Blur radius.' },
+  { name: 'grayscale', type: 'number', required: false, description: 'Grayscale (0-100).' },
+  { name: 'sepia', type: 'number', required: false, description: 'Sepia (0-100).' },
+  { name: 'saturate', type: 'number', required: false, description: 'Saturation.' },
+  { name: 'hue', type: 'number', required: false, description: 'Hue rotation (degrees).' },
+  { name: 'brightness', type: 'number', required: false, description: 'Brightness.' },
+  { name: 'contrast', type: 'number', required: false, description: 'Contrast.' },
+  { name: 'opacity', type: 'number', required: false, description: 'Opacity.' },
+]});
+
+def({ name: 'mode_effect', category: 'system', description: 'Configure mode transition effects.', descriptionJa: 'モード切替エフェクトを設定します。', params: [
+  { name: 'all', type: 'string', required: false, description: 'Effect for all modes.' },
+  { name: 'skip', type: 'string', required: false, description: 'Effect for skip mode.' },
+  { name: 'auto', type: 'string', required: false, description: 'Effect for auto mode.' },
+  { name: 'stop', type: 'string', required: false, description: 'Effect for stop.' },
+  { name: 'holdskip', type: 'string', required: false, description: 'Effect for hold-skip.' },
+  { name: 'holdstop', type: 'string', required: false, description: 'Effect for hold-stop.' },
+  { name: 'env', type: 'string', required: false, description: 'Effect environment.' },
+  { name: 'width', type: 'number', required: false, description: 'Effect width.' },
+  { name: 'height', type: 'number', required: false, description: 'Effect height.' },
+  { name: 'color', type: 'string', required: false, description: 'Effect color.' },
+  { name: 'bgcolor', type: 'string', required: false, description: 'Background color.' },
+]});
+
+def({ name: 'loading_log', category: 'system', description: 'Configure loading indicator behavior.', descriptionJa: 'ローディング表示の動作を設定します。', params: [
+  { name: 'all', type: 'boolean', required: false, description: 'Show for all loading.' },
+  { name: 'preload', type: 'boolean', required: false, description: 'Show during preload.' },
+  { name: 'save', type: 'boolean', required: false, description: 'Show during save.' },
+  { name: 'dottime', type: 'number', required: false, description: 'Dot animation interval (ms).' },
+  { name: 'icon', type: 'string', required: false, description: 'Loading icon.' },
+]});
+
 def({ name: 'body', category: 'system', description: 'Configure game screen exterior.', descriptionJa: 'ゲーム画面外の設定を行います。', params: [
   { name: 'bgimage', type: 'file', required: false, description: 'Background image.' },
   { name: 'bgcolor', type: 'color', required: false, description: 'Background color.' },
   { name: 'bgcover', type: 'boolean', required: false, description: 'Stretch to cover.' },
+  { name: 'bgrepeat', type: 'string', required: false, description: 'Background repeat mode.' },
+  { name: 'scWidth', type: 'string', required: false, description: 'Screen width override.' },
+  { name: 'scHeight', type: 'string', required: false, description: 'Screen height override.' },
 ]});
 
 def({ name: 'cursor', category: 'system', description: 'Configure mouse cursor.', descriptionJa: 'マウスカーソルを設定します。', params: [
   { name: 'storage', type: 'string', required: false, description: 'Cursor image or "default".' },
   { name: 'auto_hide', type: 'string', required: false, description: 'Auto-hide timeout.' },
+  { name: 'x', type: 'number', required: false, description: 'Cursor X offset.' },
+  { name: 'y', type: 'number', required: false, description: 'Cursor Y offset.' },
+  { name: 'type', type: 'string', required: false, description: 'Cursor type.' },
+  { name: 'click_effect', type: 'string', required: false, description: 'Click effect type.' },
+  { name: 'e_width', type: 'number', required: false, description: 'Effect width.' },
+  { name: 'e_opacity', type: 'number', required: false, description: 'Effect opacity.' },
+  { name: 'e_time', type: 'number', required: false, description: 'Effect duration (ms).' },
+  { name: 'e_color', type: 'string', required: false, description: 'Effect color.' },
+  { name: 'e_blend', type: 'string', required: false, description: 'Effect blend mode.' },
+  { name: 'e_scale', type: 'number', required: false, description: 'Effect scale.' },
 ]});
 
 def({ name: 'sysview', category: 'system', description: 'Change system screen HTML.', descriptionJa: 'システム画面のHTMLを変更します。', params: [
@@ -474,6 +615,8 @@ def({ name: 'xchgbgm', category: 'audio', description: 'Cross-fade between BGM t
   { name: 'loop', type: 'boolean', required: false, default: 'true', description: 'Loop.' },
   { name: 'time', type: 'number', required: false, default: '2000', description: 'Cross-fade time (ms).' },
   { name: 'buf', type: 'string', required: false, default: '0', description: 'Slot.' },
+  { name: 'fadein', type: 'boolean', required: false, description: 'Enable fade-in.' },
+  { name: 'fadeout', type: 'boolean', required: false, description: 'Enable fade-out.' },
 ]});
 
 def({ name: 'fadeinse', category: 'audio', description: 'Play SE with fade-in.', descriptionJa: 'フェードインでSEを再生します。', params: [
@@ -482,6 +625,8 @@ def({ name: 'fadeinse', category: 'audio', description: 'Play SE with fade-in.',
   { name: 'loop', type: 'boolean', required: false, default: 'false', description: 'Loop.' },
   { name: 'volume', type: 'number', required: false, description: 'Volume (0-100).' },
   { name: 'buf', type: 'string', required: false, default: '0', description: 'Slot.' },
+  { name: 'sprite_time', type: 'string', required: false, description: 'Sprite animation time.' },
+  { name: 'html5', type: 'boolean', required: false, description: 'Use HTML5 audio.' },
 ]});
 
 def({ name: 'fadeoutse', category: 'audio', description: 'Fade out and stop SE.', descriptionJa: 'SEをフェードアウトして停止します。', params: [
@@ -494,6 +639,9 @@ def({ name: 'bgmopt', category: 'audio', description: 'Modify BGM configuration.
   { name: 'buf', type: 'string', required: false, description: 'Slot.' },
   { name: 'effect', type: 'boolean', required: false, default: 'true', description: 'Apply to current BGM.' },
   { name: 'time', type: 'number', required: false, description: 'Fade time (ms).' },
+  { name: 'tag_volume', type: 'number', required: false, description: 'Tag-level volume.' },
+  { name: 'samebgm_restart', type: 'boolean', required: false, description: 'Restart if same BGM.' },
+  { name: 'next', type: 'boolean', required: false, description: 'Proceed to next tag.' },
 ]});
 
 def({ name: 'seopt', category: 'audio', description: 'Modify SE configuration.', descriptionJa: 'SE設定を変更します。', params: [
@@ -501,6 +649,8 @@ def({ name: 'seopt', category: 'audio', description: 'Modify SE configuration.',
   { name: 'buf', type: 'string', required: false, description: 'Slot.' },
   { name: 'effect', type: 'boolean', required: false, default: 'true', description: 'Apply to current SE.' },
   { name: 'time', type: 'number', required: false, description: 'Fade time (ms).' },
+  { name: 'tag_volume', type: 'number', required: false, description: 'Tag-level volume.' },
+  { name: 'next', type: 'boolean', required: false, description: 'Proceed to next tag.' },
 ]});
 
 def({ name: 'changevol', category: 'audio', description: 'Change volume of playing audio.', descriptionJa: '再生中オーディオの音量を変更します。', params: [
@@ -508,6 +658,7 @@ def({ name: 'changevol', category: 'audio', description: 'Change volume of playi
   { name: 'volume', type: 'number', required: false, description: 'Volume (0-100).' },
   { name: 'buf', type: 'string', required: false, description: 'Slot.' },
   { name: 'time', type: 'number', required: false, description: 'Fade time (ms).' },
+  { name: 'next', type: 'boolean', required: false, description: 'Proceed to next tag.' },
 ]});
 
 def({ name: 'pausebgm', category: 'audio', description: 'Pause BGM.', descriptionJa: 'BGMを一時停止します。', params: [
@@ -532,6 +683,8 @@ def({ name: 'voconfig', category: 'audio', description: 'Configure voice playbac
   { name: 'name', type: 'string', required: true, description: 'Character name.' },
   { name: 'vostorage', type: 'string', required: true, description: 'File template with {number}.' },
   { name: 'number', type: 'string', required: true, description: 'Initial number.' },
+  { name: 'waittime', type: 'number', required: false, description: 'Wait time before next voice (ms).' },
+  { name: 'preload', type: 'boolean', required: false, description: 'Preload voice files.' },
 ]});
 simple('vostart', 'audio', 'Enable auto voice playback.', '自動ボイス再生を有効にします。');
 simple('vostop', 'audio', 'Disable auto voice playback.', '自動ボイス再生を無効にします。');
@@ -549,6 +702,7 @@ def({ name: 'edit', category: 'ui', description: 'Display text input field.', de
   { name: 'y', type: 'number', required: false, description: 'Y position.' },
   { name: 'size', type: 'number', required: false, description: 'Font size.' },
   { name: 'maxchars', type: 'number', required: false, description: 'Max characters.' },
+  { name: 'color', type: 'string', required: false, description: 'Text color.' },
 ]});
 
 def({ name: 'commit', category: 'ui', description: 'Submit form input as variable.', descriptionJa: 'フォーム入力を変数として確定します。', params: [
@@ -565,10 +719,28 @@ def({ name: 'live2d_new', category: 'live2d', description: 'Load a Live2D model.
   { name: 'x', type: 'number', required: false, description: 'X position.' },
   { name: 'y', type: 'number', required: false, description: 'Y position.' },
   { name: 'jname', type: 'string', required: false, description: 'Display name.' },
+  { name: 'lip', type: 'string', required: false, description: 'Lip sync mode.' },
+  { name: 'lip_time', type: 'number', required: false, description: 'Lip sync interval (ms).' },
+  { name: 'lip_se', type: 'number', required: false, description: 'Lip sync SE slot.' },
+  { name: 'lip_sound_level', type: 'number', required: false, description: 'Lip sync sound threshold.' },
+  { name: 'breath', type: 'boolean', required: false, description: 'Enable breathing animation.' },
+  { name: 'left', type: 'number', required: false, description: 'X position.' },
+  { name: 'top', type: 'number', required: false, description: 'Y position.' },
+  { name: 'width', type: 'number', required: false, description: 'Canvas width.' },
+  { name: 'height', type: 'number', required: false, description: 'Canvas height.' },
+  { name: 'zindex', type: 'number', required: false, description: 'Z-index.' },
+  { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
+  { name: 'glleft', type: 'number', required: false, description: 'GL canvas X offset.' },
+  { name: 'gltop', type: 'number', required: false, description: 'GL canvas Y offset.' },
+  { name: 'glscale', type: 'number', required: false, description: 'GL canvas scale.' },
 ]});
 def({ name: 'live2d_show', category: 'live2d', description: 'Display Live2D model.', descriptionJa: 'Live2Dモデルを表示します。', params: [
   { name: 'name', type: 'string', required: false, description: 'Model ID.' },
   { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+  { name: 'idle', type: 'string', required: false, description: 'Idle motion.' },
+  { name: 'scale', type: 'number', required: false, description: 'Scale factor.' },
+  { name: 'x', type: 'number', required: false, description: 'X position.' },
+  { name: 'y', type: 'number', required: false, description: 'Y position.' },
 ]});
 def({ name: 'live2d_hide', category: 'live2d', description: 'Hide Live2D model.', descriptionJa: 'Live2Dモデルを非表示にします。', params: [
   { name: 'name', type: 'string', required: false, description: 'Model ID.' },
@@ -585,10 +757,53 @@ def({ name: 'live2d_motion', category: 'live2d', description: 'Play Live2D motio
   { name: 'name', type: 'string', required: false, description: 'Model ID.' },
   { name: 'mtn', type: 'string', required: false, description: 'Motion name.' },
   { name: 'no', type: 'number', required: false, default: '0', description: 'Motion index.' },
+  { name: 'filenm', type: 'string', required: false, description: 'Motion file name.' },
+  { name: 'force', type: 'boolean', required: false, description: 'Force play motion.' },
+  { name: 'idle', type: 'string', required: false, description: 'Idle motion after play.' },
 ]});
 def({ name: 'live2d_expression', category: 'live2d', description: 'Change Live2D expression.', descriptionJa: 'Live2D表情を変更します。', params: [
   { name: 'name', type: 'string', required: false, description: 'Model ID.' },
   { name: 'expression', type: 'string', required: false, description: 'Expression name.' },
+  { name: 'filenm', type: 'string', required: false, description: 'Expression file name.' },
+]});
+def({ name: 'live2d_trans', category: 'live2d', description: 'Move Live2D model.', descriptionJa: 'Live2Dモデルを移動します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Model ID.' },
+  { name: 'left', type: 'number', required: true, description: 'X position.' },
+  { name: 'top', type: 'number', required: true, description: 'Y position.' },
+  { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+]});
+def({ name: 'live2d_rotate', category: 'live2d', description: 'Rotate Live2D model.', descriptionJa: 'Live2Dモデルを回転します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Model ID.' },
+  { name: 'rotate', type: 'number', required: true, description: 'Rotation angle.' },
+  { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+]});
+def({ name: 'live2d_scale', category: 'live2d', description: 'Scale Live2D model.', descriptionJa: 'Live2Dモデルをスケーリングします。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Model ID.' },
+  { name: 'scaleX', type: 'number', required: true, description: 'X scale factor.' },
+  { name: 'scaleY', type: 'number', required: true, description: 'Y scale factor.' },
+  { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+]});
+def({ name: 'live2d_opacity', category: 'live2d', description: 'Change Live2D model opacity.', descriptionJa: 'Live2Dモデルの不透明度を変更します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Model ID.' },
+  { name: 'opacity', type: 'number', required: false, description: 'Opacity (0-255).' },
+  { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+]});
+def({ name: 'live2d_color', category: 'live2d', description: 'Change Live2D model color tint.', descriptionJa: 'Live2Dモデルの色調を変更します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Model ID.' },
+  { name: 'red', type: 'number', required: false, description: 'Red channel.' },
+  { name: 'green', type: 'number', required: false, description: 'Green channel.' },
+  { name: 'blue', type: 'number', required: false, description: 'Blue channel.' },
+]});
+def({ name: 'live2d_shake', category: 'live2d', description: 'Shake Live2D model.', descriptionJa: 'Live2Dモデルを揺らします。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Model ID.' },
+]});
+def({ name: 'live2d_fadein', category: 'live2d', description: 'Fade in Live2D canvas.', descriptionJa: 'Live2Dキャンバスをフェードインします。', params: [
+  { name: 'time', type: 'number', required: false, description: 'Fade time (ms).' },
+  { name: 'wait', type: 'boolean', required: false, description: 'Wait for completion.' },
+]});
+def({ name: 'live2d_fadeout', category: 'live2d', description: 'Fade out Live2D canvas.', descriptionJa: 'Live2Dキャンバスをフェードアウトします。', params: [
+  { name: 'time', type: 'number', required: false, description: 'Fade time (ms).' },
+  { name: 'wait', type: 'boolean', required: false, description: 'Wait for completion.' },
 ]});
 def({ name: 'live2d_delete', category: 'live2d', description: 'Delete Live2D model.', descriptionJa: 'Live2Dモデルを削除します。', params: [
   { name: 'name', type: 'string', required: true, description: 'Model ID.' },
@@ -601,6 +816,17 @@ simple('live2d_restore', 'live2d', 'Restore Live2D from save data.', 'セーブ�
 def({ name: '3d_init', category: '3d', description: 'Initialize 3D rendering.', descriptionJa: '3Dレンダリングを初期化します。', params: [
   { name: 'layer', type: 'string', required: false, default: '0', description: 'Layer.' },
   { name: 'camera', type: 'enum', required: false, enumValues: ['Perspective', 'Orthographic'], description: 'Camera type.' },
+  { name: 'page', type: 'string', required: false, description: 'Page target.' },
+  { name: 'near', type: 'number', required: false, description: 'Near clipping plane.' },
+  { name: 'far', type: 'number', required: false, description: 'Far clipping plane.' },
+  { name: 'material_type', type: 'string', required: false, description: 'Default material type.' },
+  { name: 'ambient_light', type: 'number', required: false, description: 'Ambient light intensity.' },
+  { name: 'directional_light', type: 'number', required: false, description: 'Directional light intensity.' },
+  { name: 'antialias', type: 'boolean', required: false, description: 'Enable antialiasing.' },
+  { name: 'studio', type: 'boolean', required: false, description: 'Enable studio mode.' },
+  { name: 'fps_rate', type: 'number', required: false, description: 'FPS rate.' },
+  { name: 'background', type: 'boolean', required: false, description: 'Show background.' },
+  { name: 'xr', type: 'string', required: false, description: 'XR mode.' },
 ]});
 def({ name: '3d_model_new', category: '3d', description: 'Load 3D model (GLTF/OBJ).', descriptionJa: '3Dモデルを読み込みます。', params: [
   { name: 'name', type: 'string', required: true, description: 'Object ID.' },
@@ -608,10 +834,16 @@ def({ name: '3d_model_new', category: '3d', description: 'Load 3D model (GLTF/OB
   { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
   { name: 'rot', type: 'string', required: false, description: 'Rotation x,y,z.' },
   { name: 'scale', type: 'string', required: false, description: 'Scale x,y,z.' },
+  { name: 'tonemap', type: 'boolean', required: false, description: 'Enable tone mapping.' },
+  { name: 'motion', type: 'string', required: false, description: 'Initial motion.' },
+  { name: 'folder', type: 'string', required: false, description: 'Model folder.' },
 ]});
 def({ name: '3d_show', category: '3d', description: 'Display 3D object.', descriptionJa: '3Dオブジェクトを表示します。', params: [
   { name: 'name', type: 'string', required: true, description: 'Object ID.' },
   { name: 'time', type: 'number', required: false, description: 'Fade-in time (ms).' },
+  { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
+  { name: 'rot', type: 'string', required: false, description: 'Rotation x,y,z.' },
+  { name: 'scale', type: 'string', required: false, description: 'Scale x,y,z.' },
 ]});
 def({ name: '3d_hide', category: '3d', description: 'Hide 3D object.', descriptionJa: '3Dオブジェクトを非表示にします。', params: [
   { name: 'name', type: 'string', required: true, description: 'Object ID.' },
@@ -623,6 +855,154 @@ def({ name: '3d_delete', category: '3d', description: 'Delete 3D object.', descr
 ]});
 simple('3d_delete_all', '3d', 'Delete all 3D objects.', '全3Dオブジェクトを削除します。');
 simple('3d_close', '3d', 'Destroy 3D scene.', '3Dシーンを破棄します。');
+
+def({ name: '3d_sphere_new', category: '3d', description: 'Create 3D sphere.', descriptionJa: '3D球体を作成します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'texture', type: 'string', required: false, description: 'Texture image.' },
+  { name: 'color', type: 'string', required: false, description: 'Object color.' },
+  { name: 'radius', type: 'number', required: false, description: 'Sphere radius.' },
+  { name: 'width', type: 'number', required: false, description: 'Width segments.' },
+  { name: 'height', type: 'number', required: false, description: 'Height segments.' },
+  { name: 'side', type: 'number', required: false, description: 'Material side.' },
+  { name: 'scale', type: 'string', required: false, description: 'Scale x,y,z.' },
+  { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
+  { name: 'rot', type: 'string', required: false, description: 'Rotation x,y,z.' },
+]});
+
+def({ name: '3d_cylinder_new', category: '3d', description: 'Create 3D cylinder.', descriptionJa: '3D円柱を作成します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'texture', type: 'string', required: false, description: 'Texture image.' },
+  { name: 'color', type: 'string', required: false, description: 'Object color.' },
+  { name: 'width', type: 'number', required: false, description: 'Radius top.' },
+  { name: 'height', type: 'number', required: false, description: 'Height.' },
+  { name: 'segment', type: 'number', required: false, description: 'Radial segments.' },
+  { name: 'side', type: 'number', required: false, description: 'Material side.' },
+  { name: 'scale', type: 'string', required: false, description: 'Scale x,y,z.' },
+  { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
+  { name: 'rot', type: 'string', required: false, description: 'Rotation x,y,z.' },
+]});
+
+def({ name: '3d_box_new', category: '3d', description: 'Create 3D box.', descriptionJa: '3Dボックスを作成します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'texture', type: 'string', required: false, description: 'Texture image.' },
+  { name: 'color', type: 'string', required: false, description: 'Object color.' },
+  { name: 'width', type: 'number', required: false, description: 'Width.' },
+  { name: 'height', type: 'number', required: false, description: 'Height.' },
+  { name: 'depth', type: 'number', required: false, description: 'Depth.' },
+  { name: 'scale', type: 'string', required: false, description: 'Scale x,y,z.' },
+  { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
+  { name: 'rot', type: 'string', required: false, description: 'Rotation x,y,z.' },
+  { name: 'tonemap', type: 'boolean', required: false, description: 'Enable tone mapping.' },
+]});
+
+def({ name: '3d_image_new', category: '3d', description: 'Create 3D image plane.', descriptionJa: '3D画像プレーンを作成します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'texture', type: 'string', required: true, description: 'Texture image.' },
+  { name: 'width', type: 'number', required: true, description: 'Width.' },
+  { name: 'height', type: 'number', required: false, description: 'Height.' },
+  { name: 'scale', type: 'string', required: false, description: 'Scale x,y,z.' },
+  { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
+  { name: 'rot', type: 'string', required: false, description: 'Rotation x,y,z.' },
+  { name: 'doubleside', type: 'boolean', required: false, description: 'Render both sides.' },
+  { name: 'tonemap', type: 'boolean', required: false, description: 'Enable tone mapping.' },
+]});
+
+def({ name: '3d_sprite_new', category: '3d', description: 'Create 3D sprite.', descriptionJa: '3Dスプライトを作成します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'storage', type: 'file', required: true, description: 'Sprite image.' },
+  { name: 'scale', type: 'string', required: false, description: 'Scale x,y,z.' },
+  { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
+  { name: 'rot', type: 'string', required: false, description: 'Rotation x,y,z.' },
+  { name: 'tonemap', type: 'boolean', required: false, description: 'Enable tone mapping.' },
+]});
+
+def({ name: '3d_text_new', category: '3d', description: 'Create 3D text.', descriptionJa: '3Dテキストを作成します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'text', type: 'string', required: true, description: 'Text content.' },
+  { name: 'color', type: 'string', required: false, description: 'Text color.' },
+]});
+
+def({ name: '3d_canvas_show', category: '3d', description: 'Show 3D canvas.', descriptionJa: '3Dキャンバスを表示します。', params: [
+  { name: 'time', type: 'number', required: false, description: 'Fade-in time (ms).' },
+]});
+
+def({ name: '3d_canvas_hide', category: '3d', description: 'Hide 3D canvas.', descriptionJa: '3Dキャンバスを非表示にします。', params: [
+  { name: 'time', type: 'number', required: false, description: 'Fade-out time (ms).' },
+]});
+
+def({ name: '3d_anim', category: '3d', description: 'Animate 3D object.', descriptionJa: '3Dオブジェクトをアニメーションします。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'pos', type: 'string', required: false, description: 'Target position x,y,z.' },
+  { name: 'rot', type: 'string', required: false, description: 'Target rotation x,y,z.' },
+  { name: 'scale', type: 'string', required: false, description: 'Target scale x,y,z.' },
+  { name: 'time', type: 'number', required: false, description: 'Duration (ms).' },
+  { name: 'easing', type: 'string', required: false, description: 'Easing function.' },
+  { name: 'wait', type: 'boolean', required: false, description: 'Wait for completion.' },
+]});
+
+def({ name: '3d_anim_stop', category: '3d', description: 'Stop 3D animation.', descriptionJa: '3Dアニメーションを停止します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'complete', type: 'boolean', required: false, description: 'Jump to end state.' },
+]});
+
+def({ name: '3d_camera', category: '3d', description: 'Control 3D camera.', descriptionJa: '3Dカメラを操作します。', params: [
+  { name: 'pos', type: 'string', required: false, description: 'Camera position x,y,z.' },
+  { name: 'lookAt', type: 'string', required: false, description: 'Look-at target x,y,z.' },
+  { name: 'fov', type: 'number', required: false, description: 'Field of view.' },
+  { name: 'rot', type: 'string', required: false, description: 'Camera rotation x,y,z.' },
+  { name: 'time', type: 'number', required: false, description: 'Transition time (ms).' },
+  { name: 'easing', type: 'string', required: false, description: 'Easing function.' },
+]});
+
+def({ name: '3d_scene', category: '3d', description: 'Configure 3D scene settings.', descriptionJa: '3Dシーン設定を変更します。', params: [
+  { name: 'ambient_light', type: 'number', required: false, description: 'Ambient light intensity.' },
+  { name: 'directional_light', type: 'number', required: false, description: 'Directional light intensity.' },
+  { name: 'tonemap', type: 'boolean', required: false, description: 'Enable tone mapping.' },
+]});
+
+def({ name: '3d_motion', category: '3d', description: 'Play 3D model motion.', descriptionJa: '3Dモデルモーションを再生します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'motion', type: 'string', required: false, description: 'Motion name.' },
+]});
+
+def({ name: '3d_event', category: '3d', description: 'Register 3D event.', descriptionJa: '3Dイベントを登録します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'type', type: 'string', required: false, description: 'Event type.' },
+  { name: 'exp', type: 'expression', required: false, description: 'JavaScript expression.' },
+  { name: 'storage', type: 'file', required: false, description: 'Jump file.' },
+  { name: 'target', type: 'string', required: false, description: 'Jump label.' },
+  { name: 'distance', type: 'number', required: false, description: 'Detection distance.' },
+  { name: 'mode', type: 'string', required: false, description: 'Event mode.' },
+]});
+
+def({ name: '3d_event_delete', category: '3d', description: 'Delete 3D event.', descriptionJa: '3Dイベントを削除します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+]});
+
+simple('3d_event_start', '3d', 'Start 3D event processing.', '3Dイベント処理を開始します。');
+simple('3d_event_stop', '3d', 'Stop 3D event processing.', '3Dイベント処理を停止します。');
+simple('3d_gyro', '3d', 'Enable gyroscope control.', 'ジャイロスコープ操作を有効にします。');
+simple('3d_gyro_stop', '3d', 'Disable gyroscope control.', 'ジャイロスコープ操作を無効にします。');
+simple('3d_debug', '3d', 'Enable 3D debug mode.', '3Dデバッグモードを有効にします。');
+simple('3d_debug_bk', '3d', 'Enable 3D debug background.', '3Dデバッグ背景を有効にします。');
+simple('3d_debug_camera', '3d', 'Enable 3D debug camera.', '3Dデバッグカメラを有効にします。');
+simple('3d_fps_control', '3d', 'Enable FPS camera control.', 'FPSカメラ操作を有効にします。');
+simple('3d_helper', '3d', 'Show 3D helper axes.', '3Dヘルパー軸を表示します。');
+
+def({ name: '3d_new_group', category: '3d', description: 'Create 3D object group.', descriptionJa: '3Dオブジェクトグループを作成します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Group ID.' },
+]});
+
+def({ name: '3d_add_group', category: '3d', description: 'Add object to 3D group.', descriptionJa: '3Dグループにオブジェクトを追加します。', params: [
+  { name: 'group', type: 'string', required: true, description: 'Group ID.' },
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+]});
+
+def({ name: '3d_sound', category: '3d', description: 'Play positional 3D audio.', descriptionJa: '3D位置オーディオを再生します。', params: [
+  { name: 'name', type: 'string', required: true, description: 'Object ID.' },
+  { name: 'storage', type: 'file', required: true, description: 'Audio file.' },
+  { name: 'pos', type: 'string', required: false, description: 'Position x,y,z.' },
+]});
 
 // ══════════════════════════ Scene system tags (used by engine) ══════════════════════════
 
@@ -658,6 +1038,15 @@ def({ name: 'popopo', category: 'audio', description: 'Play synthesized text sou
   { name: 'frequency', type: 'string', required: false, description: 'Pitch (A-G, with + for sharp).' },
   { name: 'type', type: 'enum', required: false, enumValues: ['sine', 'square', 'sawtooth', 'triangle', 'noise', 'file', 'none'], description: 'Sound type.' },
   { name: 'chara', type: 'string', required: false, default: 'default', description: 'Apply to specific character.' },
+  { name: 'time', type: 'number', required: false, description: 'Sound duration (ms).' },
+  { name: 'tailtime', type: 'number', required: false, description: 'Tail duration (ms).' },
+  { name: 'octave', type: 'number', required: false, description: 'Octave.' },
+  { name: 'mode', type: 'string', required: false, description: 'Playback mode.' },
+  { name: 'buf', type: 'string', required: false, description: 'Audio slot.' },
+  { name: 'storage', type: 'string', required: false, description: 'Sound file.' },
+  { name: 'samplerate', type: 'number', required: false, description: 'Sample rate.' },
+  { name: 'noplaychars', type: 'string', required: false, description: 'Characters to skip sound.' },
+  { name: 'interval', type: 'number', required: false, description: 'Sound interval (ms).' },
 ]});
 
 def({ name: 'set_resizecall', category: 'system', description: 'Call scenario on screen resize.', descriptionJa: '画面リサイズ時にシナリオを呼び出します。', params: [
@@ -681,9 +1070,29 @@ def({ name: 'bgcamera', category: 'ar', description: 'Stream device camera as ba
   { name: 'wait', type: 'boolean', required: false, default: 'true', description: 'Wait for display.' },
   { name: 'time', type: 'number', required: false, default: '1000', description: 'Fade-in time (ms).' },
   { name: 'mode', type: 'enum', required: false, enumValues: ['front', 'back'], description: 'Camera.' },
+  { name: 'fit', type: 'boolean', required: false, description: 'Fit to screen.' },
+  { name: 'width', type: 'number', required: false, description: 'Width.' },
+  { name: 'height', type: 'number', required: false, description: 'Height.' },
+  { name: 'left', type: 'number', required: false, description: 'X position.' },
+  { name: 'top', type: 'number', required: false, description: 'Y position.' },
+  { name: 'qrcode', type: 'string', required: false, description: 'QR code detection mode.' },
+  { name: 'debug', type: 'boolean', required: false, description: 'Enable debug mode.' },
+  { name: 'audio', type: 'boolean', required: false, description: 'Enable audio capture.' },
 ]});
 def({ name: 'stop_bgcamera', category: 'ar', description: 'Stop camera stream.', descriptionJa: 'カメラストリームを停止します。', params: [
   { name: 'time', type: 'number', required: false, default: '1000', description: 'Fade-out time (ms).' },
+  { name: 'wait', type: 'boolean', required: false, description: 'Wait for completion.' },
+]});
+
+def({ name: 'qr_config', category: 'ar', description: 'Configure QR code detection.', descriptionJa: 'QRコード検出を設定します。', params: [
+  { name: 'qrcode', type: 'string', required: true, description: 'QR code pattern.' },
+]});
+
+def({ name: 'qr_define', category: 'ar', description: 'Define QR code action.', descriptionJa: 'QRコードアクションを定義します。', params: [
+  { name: 'url', type: 'string', required: true, description: 'QR code URL pattern.' },
+  { name: 'storage', type: 'file', required: false, description: 'Jump file.' },
+  { name: 'target', type: 'string', required: false, description: 'Jump label.' },
+  { name: 'clear', type: 'boolean', required: false, description: 'Clear after detection.' },
 ]});
 
 // VChat tags
