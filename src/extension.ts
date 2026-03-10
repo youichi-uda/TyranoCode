@@ -35,6 +35,10 @@ import { TyranoCodeActionProvider } from './language/codeaction-provider';
 import { TyranoInlayHintsProvider } from './language/inlayhint-provider';
 import { TyranoSemanticTokensProvider, SEMANTIC_TOKENS_LEGEND } from './language/semantic-tokens-provider';
 import { registerSnippets } from './language/snippets';
+import { TyranoRenameProvider } from './language/rename-provider';
+import { TyranoCallHierarchyProvider } from './language/callhierarchy-provider';
+import { TyranoBracketHighlightProvider } from './language/bracket-provider';
+import { registerVariableTracker } from './language/variable-tracker';
 import { ProjectIndexer } from './analyzer/project-indexer';
 import { LicenseManager } from './license/license-manager';
 import { FlowGraphProvider } from './flow-graph/flow-graph-provider';
@@ -190,6 +194,33 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Snippets
   registerSnippets(context, LANGUAGE_ID);
+
+  // Rename (labels and macros)
+  context.subscriptions.push(
+    vscode.languages.registerRenameProvider(
+      { language: LANGUAGE_ID },
+      new TyranoRenameProvider(getIndex),
+    ),
+  );
+
+  // Call Hierarchy (scenario flow tracking)
+  context.subscriptions.push(
+    vscode.languages.registerCallHierarchyProvider(
+      { language: LANGUAGE_ID },
+      new TyranoCallHierarchyProvider(getIndex),
+    ),
+  );
+
+  // Bracket/pair matching highlight
+  context.subscriptions.push(
+    vscode.languages.registerDocumentHighlightProvider(
+      { language: LANGUAGE_ID },
+      new TyranoBracketHighlightProvider(),
+    ),
+  );
+
+  // Variable tracker tree view
+  registerVariableTracker(context, getIndex);
 
   // Diagnostics — real-time analysis on document change
   context.subscriptions.push(diagnostics.collection);

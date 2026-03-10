@@ -132,6 +132,14 @@
       {
         "command": "tyranodev.activateLicense",
         "title": "%command.activateLicense%"
+      },
+      {
+        "command": "tyranodev.showVariables",
+        "title": "TyranoCode: Show Variables"
+      },
+      {
+        "command": "tyranodev.refreshVariables",
+        "title": "TyranoCode: Refresh Variables"
       }
     ],
     "breakpoints": [
@@ -197,6 +205,13 @@
           "id": "tyranodev.tagTracker",
           "name": "%view.tagTracker%",
           "when": "debugType == 'tyranoscript'"
+        }
+      ],
+      "explorer": [
+        {
+          "id": "tyranodev.variablesView",
+          "name": "TyranoScript Variables",
+          "when": "workspaceContains:**/*.ks"
         }
       ]
     }
