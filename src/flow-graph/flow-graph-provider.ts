@@ -382,18 +382,26 @@ ${mermaidDef}
     function fitAll() {
       const svg = wrapper.querySelector('svg');
       if (!svg) return;
+
+      // Reset scale to measure natural size
+      scale = 1;
+      setTransform();
+
       const vw = container.clientWidth;
       const vh = container.clientHeight;
-      const sw = svg.getBoundingClientRect().width / scale;
-      const sh = svg.getBoundingClientRect().height / scale;
+      const sw = svg.scrollWidth || svg.getBoundingClientRect().width;
+      const sh = svg.scrollHeight || svg.getBoundingClientRect().height;
+
+      // Scale to fit with some padding
       scale = Math.min(vw / (sw + 40), vh / (sh + 40), 1.5);
-      scale = Math.max(scale, 0.3);
+      scale = Math.max(scale, 0.2);
       setTransform();
-      // Center the graph
-      const finalW = sw * scale;
-      const finalH = sh * scale;
-      container.scrollLeft = Math.max(0, (finalW - vw) / 2);
-      container.scrollTop = Math.max(0, (finalH - vh) / 2);
+
+      // Center: if scaled content is smaller than viewport, center it
+      const scaledW = sw * scale;
+      const scaledH = sh * scale;
+      container.scrollLeft = scaledW > vw ? (scaledW - vw) / 2 : 0;
+      container.scrollTop = scaledH > vh ? (scaledH - vh) / 2 : 0;
     }
 
     // Wait for mermaid to render, then attach click handlers
