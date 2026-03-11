@@ -44,7 +44,32 @@ export class TyranoDocumentSymbolProvider implements vscode.DocumentSymbolProvid
   ): vscode.DocumentSymbol[] {
     const parser = new Parser(document.uri.fsPath);
     const parsed = parser.parse(document.getText());
-    return this.buildSymbols(parsed.nodes);
+    const symbols = this.buildSymbols(parsed.nodes);
+
+    // Expand each label's range to cover all lines until the next label
+    // so that breadcrumbs show the current label for any line within its section.
+    this.expandLabelRanges(symbols, document.lineCount);
+
+    return symbols;
+  }
+
+  /**
+   * Extends each label symbol's range to end just before the next label starts,
+   * or at the end of the document. This makes breadcrumbs show the enclosing
+   * label for any line within its section.
+   */
+  private expandLabelRanges(symbols: vscode.DocumentSymbol[], lineCount: number): void {
+    const labels = symbols.filter(s => s.kind === vscode.SymbolKind.Key);
+    for (let i = 0; i < labels.length; i++) {
+      const nextLabel = labels[i + 1];
+      const endLine = nextLabel
+        ? Math.max(nextLabel.range.start.line - 1, labels[i].range.start.line)
+        : lineCount - 1;
+      labels[i].range = new vscode.Range(
+        labels[i].range.start,
+        new vscode.Position(endLine, 10000),
+      );
+    }
   }
 
   private buildSymbols(nodes: ScenarioNode[]): vscode.DocumentSymbol[] {

@@ -125,7 +125,15 @@ export class Scanner {
       name += this.peek();
       this.advance();
     }
-    this.emitTokenAt('LABEL', name, this.line, startCol);
+    // length must include the leading '*' so that the token range
+    // fully covers "*name" (required for DocumentSymbol selectionRange containment).
+    this.tokens.push({
+      type: 'LABEL',
+      value: name,
+      line: this.line,
+      column: startCol,
+      length: name.length + 1, // +1 for the '*'
+    });
     // consume rest of line (label can have display text after |)
     while (this.pos < this.source.length && this.peek() !== '\n' && this.peek() !== '\r') {
       this.advance();
@@ -235,11 +243,11 @@ export class Scanner {
         this.skipWhitespaceInline();
 
         // Attribute value
-        const valueStartCol = this.column;
         let value = '';
 
         if (this.peek() === '"') {
           this.advance(); // skip opening "
+          const valueStartCol = this.column; // after the opening quote
           while (this.pos < this.source.length && this.peek() !== '"') {
             if (this.peek() === '\\') {
               value += this.peek();
@@ -253,7 +261,8 @@ export class Scanner {
           }
           this.emitTokenAt('ATTR_VALUE', value, this.line, valueStartCol);
         } else if (this.peek() === "'") {
-          this.advance();
+          this.advance(); // skip opening '
+          const valueStartCol = this.column; // after the opening quote
           while (this.pos < this.source.length && this.peek() !== "'") {
             value += this.peek();
             this.advance();
@@ -264,6 +273,7 @@ export class Scanner {
           this.emitTokenAt('ATTR_VALUE', value, this.line, valueStartCol);
         } else {
           // Unquoted value — read until whitespace or ]
+          const valueStartCol = this.column;
           while (
             this.pos < this.source.length &&
             !/[\s\]]/.test(this.peek())

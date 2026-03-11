@@ -151,6 +151,14 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
       );
       item.insertText = new vscode.SnippetString(`${param.name}="\${1:${param.default ?? ''}}"`);
       item.sortText = param.required ? `0_${param.name}` : `1_${param.name}`;
+
+      // For file/enum/boolean attributes, re-trigger completion after insertion
+      // so the user immediately sees value candidates (resource files, enum values, etc.)
+      if (param.type === 'file' || param.type === 'enum' || param.type === 'boolean'
+          || param.name === 'storage' || param.name === 'target') {
+        item.command = { command: 'editor.action.triggerSuggest', title: 'Trigger Suggest' };
+      }
+
       items.push(item);
     }
 
