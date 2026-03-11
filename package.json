@@ -106,6 +106,11 @@
           "default": true,
           "description": "%config.diagnostics.unreachableCode%"
         },
+        "tyranodev.devMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Developer mode: bypass license check and unlock all Pro features."
+        },
         "tyranodev.license.key": {
           "type": "string",
           "default": "",
@@ -164,6 +169,11 @@
     ],
     "menus": {
       "editor/title": [
+        {
+          "command": "tyranodev.showFlowGraph",
+          "when": "resourceLangId == tyranoscript",
+          "group": "navigation"
+        },
         {
           "command": "tyranodev.previewScene",
           "when": "resourceLangId == tyranoscript",
@@ -255,6 +265,7 @@
     "test:unit:watch": "vitest"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.54",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.18.1",
@@ -269,6 +280,8 @@
   },
   "dependencies": {
     "@vscode/debugadapter": "^1.65.0",
+    "dagre": "^0.8.5",
+    "mermaid": "^11.13.0",
     "ws": "^8.19.0"
   }
 }

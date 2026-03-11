@@ -48,6 +48,15 @@ export class LicenseManager {
    */
   initialize(): void {
     const config = vscode.workspace.getConfiguration('tyranodev');
+
+    // Dev bypass: tyranodev.devMode = true skips license check
+    if (config.get<boolean>('devMode', false)) {
+      this._isValid = true;
+      this._onDidChange.fire(true);
+      console.log('TyranoCode: Dev mode — all Pro features unlocked');
+      return;
+    }
+
     const key = config.get<string>('license.key', '');
     if (key) {
       this.validateAndSet(key);

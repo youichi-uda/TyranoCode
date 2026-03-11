@@ -8,6 +8,15 @@ import { Scanner } from '../src/parser/scanner';
 import { Parser } from '../src/parser/parser';
 import { TAG_DATABASE } from '../src/language/tag-database';
 import { registerExtendedTags } from '../src/language/tag-database-ext';
+import {
+  LABEL_REF_TAGS,
+  ProjectIndex,
+  ParsedScenario,
+  ScenarioNode,
+  TagNode,
+  LabelNode,
+  MacroDefNode,
+} from '../src/parser/types';
 
 beforeAll(() => {
   registerExtendedTags();
@@ -637,5 +646,790 @@ describe('Integration: complex scenario parsing', () => {
     // Text detected
     const texts = result.nodes.filter(n => n.type === 'text');
     expect(texts.length).toBeGreaterThan(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// LABEL_REF_TAGS: verify constant contents
+// ════════════════════════════════════════════════════════════════════
+
+describe('LABEL_REF_TAGS: constant validation', () => {
+  it('should contain all label-referencing tags', () => {
+    const expected = ['jump', 'call', 'link', 'button', 'glink', 'clickable', 'sleepgame', 'dialog'];
+    for (const tag of expected) {
+      expect(LABEL_REF_TAGS.has(tag), `missing "${tag}"`).toBe(true);
+    }
+  });
+
+  it('should have exactly 8 entries', () => {
+    expect(LABEL_REF_TAGS.size).toBe(8);
+  });
+
+  it('should not contain non-label-referencing tags', () => {
+    const nonLabelTags = ['bg', 'image', 'playbgm', 'eval', 'if', 'macro', 'cm', 'p', 'l', 's'];
+    for (const tag of nonLabelTags) {
+      expect(LABEL_REF_TAGS.has(tag), `should not contain "${tag}"`).toBe(false);
+    }
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// MacroDefNode: verify nameRange
+// ════════════════════════════════════════════════════════════════════
+
+describe('MacroDefNode: nameRange', () => {
+  it('should have nameRange pointing to macro name', () => {
+    const result = new Parser('test.ks').parse('[macro name="greet"]\n[cm]\n[endmacro]');
+    const macro = result.macros.get('greet')!;
+    expect(macro).toBeDefined();
+    expect(macro.nameRange).toBeDefined();
+    expect(macro.nameRange.start.line).toBe(0);
+  });
+
+  it('should have correct nameRange for multi-char names', () => {
+    const result = new Parser('test.ks').parse('[macro name="long_macro_name"]\n[endmacro]');
+    const macro = result.macros.get('long_macro_name')!;
+    expect(macro).toBeDefined();
+    expect(macro.name).toBe('long_macro_name');
+    expect(macro.nameRange).toBeDefined();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Flow Graph: verify data extraction via parser + ProjectIndex
+// ════════════════════════════════════════════════════════════════════
+
+describe('Flow Graph: data extraction for graph building', () => {
+  function buildMockIndex(...files: { name: string; source: string }[]): ProjectIndex {
+    const scenarios = new Map<string, ParsedScenario>();
+    const globalLabels = new Map<string, { file: string; node: LabelNode }[]>();
+    const globalMacros = new Map<string, { file: string; node: MacroDefNode }>();
+    const variables = new Map();
+
+    for (const f of files) {
+      const parsed = new Parser(f.name).parse(f.source);
+      scenarios.set(f.name, parsed);
+      for (const [name, node] of parsed.labels) {
+        const arr = globalLabels.get(name) ?? [];
+        arr.push({ file: f.name, node });
+        globalLabels.set(name, arr);
+      }
+      for (const [name, node] of parsed.macros) {
+        globalMacros.set(name, { file: f.name, node });
+      }
+    }
+
+    return { scenarios, globalLabels, globalMacros, variables };
+  }
+
+  it('should extract jump edges from parsed scenario', () => {
+    const index = buildMockIndex({
+      name: 'first.ks',
+      source: '*start\n[jump target="*end"]\n*end\n[s]',
+    });
+    const scenario = index.scenarios.get('first.ks')!;
+
+    // Find tags that reference labels
+    const jumpTags = scenario.nodes.filter(
+      n => n.type === 'tag' && LABEL_REF_TAGS.has(n.name),
+    ) as TagNode[];
+    expect(jumpTags.length).toBe(1);
+    expect(jumpTags[0].name).toBe('jump');
+    expect(jumpTags[0].attributes.find(a => a.name === 'target')!.value).toBe('*end');
+  });
+
+  it('should extract cross-file jump edges', () => {
+    const index = buildMockIndex(
+      { name: 'first.ks', source: '*start\n[jump storage="second.ks" target="*begin"]' },
+      { name: 'second.ks', source: '*begin\nHello\n[s]' },
+    );
+
+    const scenario = index.scenarios.get('first.ks')!;
+    const jumpTag = scenario.nodes.find(
+      n => n.type === 'tag' && n.name === 'jump',
+    ) as TagNode;
+    expect(jumpTag.attributes.find(a => a.name === 'storage')!.value).toBe('second.ks');
+    expect(jumpTag.attributes.find(a => a.name === 'target')!.value).toBe('*begin');
+    expect(index.globalLabels.has('begin')).toBe(true);
+  });
+
+  it('should distinguish jump/call/choice edge types', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: [
+        '*start',
+        '[jump target="*a"]',
+        '*a',
+        '[call target="*b"]',
+        '*b',
+        '[button text="Option 1" target="*c"]',
+        '[s]',
+        '*c',
+        '[s]',
+      ].join('\n'),
+    });
+
+    const scenario = index.scenarios.get('test.ks')!;
+    const refTags = scenario.nodes.filter(
+      n => n.type === 'tag' && LABEL_REF_TAGS.has(n.name),
+    ) as TagNode[];
+
+    const tagNames = refTags.map(t => t.name);
+    expect(tagNames).toContain('jump');
+    expect(tagNames).toContain('call');
+    expect(tagNames).toContain('button');
+  });
+
+  it('should handle glink choice tags', () => {
+    const result = new Parser('test.ks').parse(
+      '[glink text="Go" target="*dest" x=100 y=200]',
+    );
+    const tag = result.nodes.find(n => n.type === 'tag' && (n as TagNode).name === 'glink') as TagNode;
+    expect(tag).toBeDefined();
+    expect(tag.attributes.find(a => a.name === 'text')!.value).toBe('Go');
+    expect(tag.attributes.find(a => a.name === 'target')!.value).toBe('*dest');
+    expect(LABEL_REF_TAGS.has('glink')).toBe(true);
+  });
+
+  it('should skip dynamic label targets (& prefix)', () => {
+    const result = new Parser('test.ks').parse('[jump target="&f.nextLabel"]');
+    const tag = result.nodes.find(n => n.type === 'tag') as TagNode;
+    const target = tag.attributes.find(a => a.name === 'target')!.value!;
+    // Dynamic targets start with & after * removal
+    const labelName = target.replace(/^\*/, '');
+    expect(labelName.startsWith('&')).toBe(true);
+  });
+
+  it('should extract edges from within if blocks', () => {
+    const result = new Parser('test.ks').parse([
+      '[if exp="f.x==1"]',
+      '[jump target="*route_a"]',
+      '[elsif exp="f.x==2"]',
+      '[jump target="*route_b"]',
+      '[else]',
+      '[jump target="*route_c"]',
+      '[endif]',
+    ].join('\n'));
+
+    const ifBlock = result.nodes.find(n => n.type === 'if_block');
+    expect(ifBlock).toBeDefined();
+    if (ifBlock?.type === 'if_block') {
+      // Then branch
+      const thenJumps = ifBlock.thenBranch.filter(
+        n => n.type === 'tag' && LABEL_REF_TAGS.has((n as TagNode).name),
+      );
+      expect(thenJumps.length).toBe(1);
+
+      // Elsif branches
+      expect(ifBlock.elsifBranches.length).toBe(1);
+      const elsifJumps = ifBlock.elsifBranches[0].body.filter(
+        n => n.type === 'tag' && LABEL_REF_TAGS.has((n as TagNode).name),
+      );
+      expect(elsifJumps.length).toBe(1);
+
+      // Else branch
+      expect(ifBlock.elseBranch).not.toBeNull();
+      const elseJumps = ifBlock.elseBranch!.filter(
+        n => n.type === 'tag' && LABEL_REF_TAGS.has((n as TagNode).name),
+      );
+      expect(elseJumps.length).toBe(1);
+    }
+  });
+
+  it('should extract edges from within macro definitions', () => {
+    const result = new Parser('test.ks').parse([
+      '[macro name="go_somewhere"]',
+      '[jump target="*destination"]',
+      '[endmacro]',
+    ].join('\n'));
+
+    const macro = result.macros.get('go_somewhere')!;
+    const jumps = macro.body.filter(
+      n => n.type === 'tag' && LABEL_REF_TAGS.has((n as TagNode).name),
+    );
+    expect(jumps.length).toBe(1);
+  });
+
+  it('should build correct node set from multi-file project', () => {
+    const index = buildMockIndex(
+      {
+        name: 'first.ks',
+        source: '*start\n[jump storage="chapter1.ks" target="*begin"]\n*end\n[s]',
+      },
+      {
+        name: 'chapter1.ks',
+        source: '*begin\nHello\n*middle\n[jump target="*fin"]\n*fin\n[s]',
+      },
+    );
+
+    expect(index.scenarios.size).toBe(2);
+    expect(index.globalLabels.size).toBe(5); // start, end, begin, middle, fin
+    expect(index.globalLabels.has('start')).toBe(true);
+    expect(index.globalLabels.has('begin')).toBe(true);
+    expect(index.globalLabels.has('fin')).toBe(true);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Profiler: verify static analysis data extraction
+// ════════════════════════════════════════════════════════════════════
+
+describe('Profiler: static analysis data', () => {
+  const RESOURCE_TAGS_MAP: Record<string, string> = {
+    bg: 'image', image: 'image', chara_new: 'image', chara_face: 'image',
+    chara_show: 'image', chara_mod: 'image',
+    playbgm: 'audio', fadeinbgm: 'audio', playse: 'audio', fadeinse: 'audio',
+    movie: 'video', bgmovie: 'video',
+    loadjs: 'script', loadcss: 'css',
+  };
+
+  const TRANSITION_TAGS = new Set([
+    'bg', 'mask', 'mask_off', 'trans', 'quake', 'vibrate',
+    'chara_show', 'chara_hide', 'chara_move', 'chara_mod',
+    'anim', 'kanim', 'keyframe',
+  ]);
+
+  function collectStats(nodes: ScenarioNode[]) {
+    let tagCount = 0;
+    let labelCount = 0;
+    let evalCount = 0;
+    let transitionCount = 0;
+    let choicePoints = 0;
+    const resources: { type: string; file: string; tag: string }[] = [];
+
+    function walk(nodeList: ScenarioNode[]) {
+      for (const node of nodeList) {
+        if (node.type === 'label') labelCount++;
+        if (node.type === 'tag') {
+          tagCount++;
+          const tn = node as TagNode;
+
+          const resType = RESOURCE_TAGS_MAP[tn.name];
+          if (resType) {
+            const storage = tn.attributes.find(a => a.name === 'storage');
+            if (storage?.value) {
+              resources.push({ type: resType, file: storage.value, tag: tn.name });
+            }
+          }
+
+          if (TRANSITION_TAGS.has(tn.name)) transitionCount++;
+          if (tn.name === 'eval' || tn.name === 'iscript') evalCount++;
+          if (tn.name === 'button' || tn.name === 'glink') choicePoints++;
+        }
+        if (node.type === 'if_block') {
+          walk(node.thenBranch);
+          for (const b of node.elsifBranches) walk(b.body);
+          if (node.elseBranch) walk(node.elseBranch);
+        }
+        if (node.type === 'macro_def') {
+          walk(node.body);
+        }
+      }
+    }
+    walk(nodes);
+    return { tagCount, labelCount, evalCount, transitionCount, choicePoints, resources };
+  }
+
+  it('should count tags correctly', () => {
+    const result = new Parser('test.ks').parse(
+      '[bg storage="room.jpg"]\n[cm]\n[p]\n[s]',
+    );
+    const stats = collectStats(result.nodes);
+    expect(stats.tagCount).toBe(4);
+  });
+
+  it('should count labels correctly', () => {
+    const result = new Parser('test.ks').parse(
+      '*start\n[cm]\n*middle\n[cm]\n*end\n[s]',
+    );
+    const stats = collectStats(result.nodes);
+    expect(stats.labelCount).toBe(3);
+  });
+
+  it('should detect resource loads', () => {
+    const result = new Parser('test.ks').parse([
+      '[bg storage="room.jpg"]',
+      '[playbgm storage="bgm01.ogg"]',
+      '[playse storage="click.ogg"]',
+      '[movie storage="intro.mp4"]',
+      '[loadjs storage="custom.js"]',
+      '[loadcss storage="style.css"]',
+    ].join('\n'));
+    const stats = collectStats(result.nodes);
+    expect(stats.resources.length).toBe(6);
+    expect(stats.resources.filter(r => r.type === 'image').length).toBe(1);
+    expect(stats.resources.filter(r => r.type === 'audio').length).toBe(2);
+    expect(stats.resources.filter(r => r.type === 'video').length).toBe(1);
+    expect(stats.resources.filter(r => r.type === 'script').length).toBe(1);
+    expect(stats.resources.filter(r => r.type === 'css').length).toBe(1);
+  });
+
+  it('should count transitions', () => {
+    const result = new Parser('test.ks').parse([
+      '[bg storage="room.jpg" time=1000]',
+      '[chara_show name="a"]',
+      '[chara_mod name="a" face="happy"]',
+      '[trans method=crossfade time=500]',
+      '[quake count=3]',
+    ].join('\n'));
+    const stats = collectStats(result.nodes);
+    expect(stats.transitionCount).toBe(5);
+  });
+
+  it('should count eval calls', () => {
+    const result = new Parser('test.ks').parse([
+      '[eval exp="f.x = 1"]',
+      '[eval exp="f.y = f.x + 1"]',
+    ].join('\n'));
+    const stats = collectStats(result.nodes);
+    expect(stats.evalCount).toBe(2);
+  });
+
+  it('should detect iscript blocks separately', () => {
+    const result = new Parser('test.ks').parse([
+      '[iscript]',
+      'f.z = 100;',
+      '[endscript]',
+    ].join('\n'));
+    // iscript is parsed as its own node type, not a tag
+    const iscriptNodes = result.nodes.filter(n => n.type === 'iscript');
+    expect(iscriptNodes.length).toBe(1);
+  });
+
+  it('should count choice points', () => {
+    const result = new Parser('test.ks').parse([
+      '[button text="A" target="*a"]',
+      '[button text="B" target="*b"]',
+      '[glink text="C" target="*c" x=0 y=0]',
+      '[s]',
+    ].join('\n'));
+    const stats = collectStats(result.nodes);
+    expect(stats.choicePoints).toBe(3);
+  });
+
+  it('should count tags inside if blocks', () => {
+    const result = new Parser('test.ks').parse([
+      '[if exp="f.x==1"]',
+      '[bg storage="a.jpg"]',
+      '[playbgm storage="a.ogg"]',
+      '[else]',
+      '[bg storage="b.jpg"]',
+      '[endif]',
+    ].join('\n'));
+    const stats = collectStats(result.nodes);
+    expect(stats.tagCount).toBe(3); // bg, playbgm, bg
+    expect(stats.resources.length).toBe(3);
+    expect(stats.transitionCount).toBe(2); // two bg tags
+  });
+
+  it('should detect long wait warning data', () => {
+    const result = new Parser('test.ks').parse('[wait time=10000]');
+    const tag = result.nodes.find(n => n.type === 'tag') as TagNode;
+    const timeAttr = tag.attributes.find(a => a.name === 'time');
+    const waitTime = parseInt(timeAttr?.value ?? '0', 10);
+    expect(waitTime).toBe(10000);
+    expect(waitTime > 5000).toBe(true);
+  });
+
+  it('should classify complexity based on tag count thresholds', () => {
+    function getComplexity(tagCount: number, transitionCount: number, resourceCount: number) {
+      if (tagCount > 500 || transitionCount > 50 || resourceCount > 30) return 'critical';
+      if (tagCount > 200 || transitionCount > 20 || resourceCount > 15) return 'high';
+      if (tagCount > 80 || transitionCount > 10) return 'medium';
+      return 'low';
+    }
+
+    expect(getComplexity(10, 2, 3)).toBe('low');
+    expect(getComplexity(100, 5, 5)).toBe('medium');
+    expect(getComplexity(300, 5, 5)).toBe('high');
+    expect(getComplexity(600, 5, 5)).toBe('critical');
+    expect(getComplexity(50, 55, 5)).toBe('critical');
+    expect(getComplexity(50, 5, 35)).toBe('critical');
+    expect(getComplexity(50, 25, 5)).toBe('high');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Test Runner: choice point detection patterns
+// ════════════════════════════════════════════════════════════════════
+
+describe('Test Runner: choice point detection', () => {
+  function findChoicePoints(nodes: ScenarioNode[]) {
+    const points: { label: string | null; options: { text: string; target: string | null }[] }[] = [];
+    let currentLabel: string | null = null;
+    const pendingChoices: TagNode[] = [];
+
+    for (const node of nodes) {
+      if (node.type === 'label') {
+        if (pendingChoices.length > 0) {
+          points.push(buildPoint(currentLabel, pendingChoices));
+          pendingChoices.length = 0;
+        }
+        currentLabel = node.name;
+      }
+      if (node.type === 'tag' && (node.name === 'button' || node.name === 'glink')) {
+        pendingChoices.push(node);
+      }
+      if (node.type === 'tag' && node.name === 's' && pendingChoices.length > 0) {
+        points.push(buildPoint(currentLabel, pendingChoices));
+        pendingChoices.length = 0;
+      }
+    }
+    if (pendingChoices.length > 0) {
+      points.push(buildPoint(currentLabel, pendingChoices));
+    }
+    return points;
+  }
+
+  function buildPoint(label: string | null, choices: TagNode[]) {
+    return {
+      label,
+      options: choices.map(c => ({
+        text: c.attributes.find(a => a.name === 'text')?.value ?? `(${c.name})`,
+        target: c.attributes.find(a => a.name === 'target')?.value?.replace(/^\*/, '') ?? null,
+      })),
+    };
+  }
+
+  it('should detect button choice points followed by [s]', () => {
+    const result = new Parser('test.ks').parse([
+      '*choice',
+      '[button text="Route A" target="*a"]',
+      '[button text="Route B" target="*b"]',
+      '[s]',
+    ].join('\n'));
+
+    const points = findChoicePoints(result.nodes);
+    expect(points.length).toBe(1);
+    expect(points[0].label).toBe('choice');
+    expect(points[0].options.length).toBe(2);
+    expect(points[0].options[0].text).toBe('Route A');
+    expect(points[0].options[0].target).toBe('a');
+    expect(points[0].options[1].text).toBe('Route B');
+    expect(points[0].options[1].target).toBe('b');
+  });
+
+  it('should detect glink choice points', () => {
+    const result = new Parser('test.ks').parse([
+      '*select',
+      '[glink text="Yes" target="*yes" x=100 y=200]',
+      '[glink text="No" target="*no" x=100 y=300]',
+      '[s]',
+    ].join('\n'));
+
+    const points = findChoicePoints(result.nodes);
+    expect(points.length).toBe(1);
+    expect(points[0].options.length).toBe(2);
+    expect(points[0].options[0].text).toBe('Yes');
+    expect(points[0].options[1].text).toBe('No');
+  });
+
+  it('should detect multiple choice points in sequence', () => {
+    const result = new Parser('test.ks').parse([
+      '*choice1',
+      '[button text="A" target="*a"]',
+      '[button text="B" target="*b"]',
+      '[s]',
+      '*a',
+      '[jump target="*choice2"]',
+      '*b',
+      '[jump target="*choice2"]',
+      '*choice2',
+      '[button text="C" target="*c"]',
+      '[button text="D" target="*d"]',
+      '[s]',
+    ].join('\n'));
+
+    const points = findChoicePoints(result.nodes);
+    expect(points.length).toBe(2);
+    expect(points[0].label).toBe('choice1');
+    expect(points[1].label).toBe('choice2');
+  });
+
+  it('should handle choices without text attribute', () => {
+    const result = new Parser('test.ks').parse([
+      '[button target="*x"]',
+      '[s]',
+    ].join('\n'));
+
+    const points = findChoicePoints(result.nodes);
+    expect(points.length).toBe(1);
+    expect(points[0].options[0].text).toBe('(button)');
+  });
+
+  it('should handle no choice points', () => {
+    const result = new Parser('test.ks').parse(
+      '*start\n[bg storage="room.jpg"]\nHello[p]\n[s]',
+    );
+    const points = findChoicePoints(result.nodes);
+    expect(points.length).toBe(0);
+  });
+
+  it('should flush remaining choices at end of file', () => {
+    const result = new Parser('test.ks').parse([
+      '*choose',
+      '[button text="Go" target="*go"]',
+    ].join('\n'));
+
+    const points = findChoicePoints(result.nodes);
+    expect(points.length).toBe(1);
+    expect(points[0].options[0].text).toBe('Go');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Test Runner: unreachable label detection
+// ════════════════════════════════════════════════════════════════════
+
+describe('Test Runner: unreachable label detection', () => {
+  function collectReferencedLabels(nodes: ScenarioNode[], labels: Set<string>) {
+    for (const node of nodes) {
+      if (node.type === 'tag' && LABEL_REF_TAGS.has(node.name)) {
+        const target = node.attributes.find(a => a.name === 'target');
+        if (target?.value) {
+          labels.add(target.value.replace(/^\*/, ''));
+        }
+      }
+      if (node.type === 'if_block') {
+        collectReferencedLabels(node.thenBranch, labels);
+        for (const b of node.elsifBranches) collectReferencedLabels(b.body, labels);
+        if (node.elseBranch) collectReferencedLabels(node.elseBranch, labels);
+      }
+      if (node.type === 'macro_def') {
+        collectReferencedLabels(node.body, labels);
+      }
+    }
+  }
+
+  it('should find labels not referenced by any jump/call', () => {
+    const result = new Parser('test.ks').parse([
+      '*start',
+      '[jump target="*used"]',
+      '*used',
+      '[s]',
+      '*orphan',
+      'This label is never jumped to',
+      '[s]',
+    ].join('\n'));
+
+    const referenced = new Set<string>();
+    collectReferencedLabels(result.nodes, referenced);
+
+    const allLabels = [...result.labels.keys()];
+    const unreachable = allLabels.filter(l => l !== 'start' && !referenced.has(l));
+    expect(unreachable).toEqual(['orphan']);
+  });
+
+  it('should not flag labels referenced inside if blocks', () => {
+    const result = new Parser('test.ks').parse([
+      '*start',
+      '[if exp="f.x==1"]',
+      '[jump target="*conditional"]',
+      '[endif]',
+      '[s]',
+      '*conditional',
+      '[s]',
+    ].join('\n'));
+
+    const referenced = new Set<string>();
+    collectReferencedLabels(result.nodes, referenced);
+    expect(referenced.has('conditional')).toBe(true);
+  });
+
+  it('should detect all referenced labels across tag types', () => {
+    const result = new Parser('test.ks').parse([
+      '*start',
+      '[jump target="*a"]',
+      '[call target="*b"]',
+      '[link target="*c"]click[endlink]',
+      '[button text="d" target="*d"]',
+      '[glink text="e" target="*e" x=0 y=0]',
+    ].join('\n'));
+
+    const referenced = new Set<string>();
+    collectReferencedLabels(result.nodes, referenced);
+    expect(referenced.has('a')).toBe(true);
+    expect(referenced.has('b')).toBe(true);
+    expect(referenced.has('c')).toBe(true);
+    expect(referenced.has('d')).toBe(true);
+    expect(referenced.has('e')).toBe(true);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Diagnostics: bilingual message pattern matching
+// ════════════════════════════════════════════════════════════════════
+
+describe('Diagnostics: bilingual message patterns for CodeAction', () => {
+  // These patterns must match what diagnostics.ts produces AND what codeaction-provider.ts expects
+
+  it('should match English "Unknown tag" pattern', () => {
+    const msg = 'Unknown tag or undefined macro: [customtag]';
+    const match = msg.match(/^(?:Unknown tag or undefined macro|不明なタグまたは未定義のマクロ): \[(\w+)\]/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('customtag');
+  });
+
+  it('should match Japanese "Unknown tag" pattern', () => {
+    const msg = '不明なタグまたは未定義のマクロ: [customtag]';
+    const match = msg.match(/^(?:Unknown tag or undefined macro|不明なタグまたは未定義のマクロ): \[(\w+)\]/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('customtag');
+  });
+
+  it('should match English "Undefined label" pattern', () => {
+    const msg = 'Undefined label: *missing_label';
+    const match = msg.match(/^(?:Undefined label|未定義のラベル): \*(\w+)$/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('missing_label');
+  });
+
+  it('should match Japanese "Undefined label" pattern', () => {
+    const msg = '未定義のラベル: *missing_label';
+    const match = msg.match(/^(?:Undefined label|未定義のラベル): \*(\w+)$/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('missing_label');
+  });
+
+  it('should match "Unknown parameter" pattern (English only)', () => {
+    const msg = 'Unknown parameter "xyz" for [bg]';
+    const match = msg.match(/^Unknown parameter "(\w+)" for \[(\w+)\]$/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('xyz');
+    expect(match![2]).toBe('bg');
+  });
+
+  it('should match unreachable code pattern', () => {
+    const en = 'Unreachable code after [jump]';
+    const ja = '[jump] の後の到達不能コード';
+    expect(en).toMatch(/Unreachable code after \[(\w+)\]/);
+    expect(ja).toMatch(/\[(\w+)\] の後の到達不能コード/);
+  });
+
+  it('should match missing required parameter pattern', () => {
+    const en = 'Missing required parameter "storage" for [bg]';
+    const ja = '[bg] の必須パラメータ "storage" がありません';
+    expect(en).toMatch(/Missing required parameter "(\w+)" for \[(\w+)\]/);
+    expect(ja).toMatch(/\[(\w+)\] の必須パラメータ "(\w+)" がありません/);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Scanner: # and / prefixed tag names
+// ════════════════════════════════════════════════════════════════════
+
+describe('Scanner: special tag name prefixes', () => {
+  it('should scan # prefixed tag names (speaker)', () => {
+    const tokens = new Scanner('[#sakura]').scan();
+    const tagName = tokens.find(t => t.type === 'TAG_NAME');
+    expect(tagName).toBeDefined();
+    expect(tagName!.value).toBe('#sakura');
+  });
+
+  it('should scan / prefixed tag names (closing)', () => {
+    const tokens = new Scanner('[/ruby]').scan();
+    const tagName = tokens.find(t => t.type === 'TAG_NAME');
+    expect(tagName).toBeDefined();
+    expect(tagName!.value).toBe('/ruby');
+  });
+
+  it('should scan [#] (anonymous speaker reset)', () => {
+    const tokens = new Scanner('[#]').scan();
+    const tagName = tokens.find(t => t.type === 'TAG_NAME');
+    expect(tagName).toBeDefined();
+    expect(tagName!.value).toBe('#');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Parser: @ shorthand syntax
+// ════════════════════════════════════════════════════════════════════
+
+describe('Parser: @ shorthand tag syntax', () => {
+  it('should parse @ shorthand as tag', () => {
+    const result = new Parser('test.ks').parse('@jump target="*end"');
+    const tag = result.nodes.find(n => n.type === 'tag') as TagNode;
+    expect(tag).toBeDefined();
+    expect(tag.name).toBe('jump');
+    expect(tag.attributes.find(a => a.name === 'target')!.value).toBe('*end');
+  });
+
+  it('should parse @ shorthand with multiple attributes', () => {
+    const result = new Parser('test.ks').parse('@bg storage="room.jpg" time=1000 method=crossfade');
+    const tag = result.nodes.find(n => n.type === 'tag') as TagNode;
+    expect(tag.name).toBe('bg');
+    expect(tag.attributes.length).toBe(3);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Parser: nested structures
+// ════════════════════════════════════════════════════════════════════
+
+describe('Parser: nested structures', () => {
+  it('should handle if blocks nested inside macros', () => {
+    const result = new Parser('test.ks').parse([
+      '[macro name="smart_jump"]',
+      '[if exp="mp.cond==true"]',
+      '[jump target="*yes"]',
+      '[else]',
+      '[jump target="*no"]',
+      '[endif]',
+      '[endmacro]',
+    ].join('\n'));
+
+    const macro = result.macros.get('smart_jump')!;
+    expect(macro).toBeDefined();
+    const ifBlock = macro.body.find(n => n.type === 'if_block');
+    expect(ifBlock).toBeDefined();
+    if (ifBlock?.type === 'if_block') {
+      expect(ifBlock.elseBranch).not.toBeNull();
+    }
+  });
+
+  it('should handle deeply nested if blocks', () => {
+    const result = new Parser('test.ks').parse([
+      '[if exp="f.a"]',
+      '[if exp="f.b"]',
+      '[if exp="f.c"]',
+      '[cm]',
+      '[endif]',
+      '[endif]',
+      '[endif]',
+    ].join('\n'));
+
+    const outerIf = result.nodes.find(n => n.type === 'if_block');
+    expect(outerIf).toBeDefined();
+    if (outerIf?.type === 'if_block') {
+      const innerIf = outerIf.thenBranch.find(n => n.type === 'if_block');
+      expect(innerIf).toBeDefined();
+      if (innerIf?.type === 'if_block') {
+        const deepIf = innerIf.thenBranch.find(n => n.type === 'if_block');
+        expect(deepIf).toBeDefined();
+      }
+    }
+  });
+
+  it('should handle elsif chains', () => {
+    const result = new Parser('test.ks').parse([
+      '[if exp="f.x==1"]',
+      'One',
+      '[elsif exp="f.x==2"]',
+      'Two',
+      '[elsif exp="f.x==3"]',
+      'Three',
+      '[elsif exp="f.x==4"]',
+      'Four',
+      '[else]',
+      'Other',
+      '[endif]',
+    ].join('\n'));
+
+    const ifBlock = result.nodes.find(n => n.type === 'if_block');
+    expect(ifBlock).toBeDefined();
+    if (ifBlock?.type === 'if_block') {
+      expect(ifBlock.elsifBranches.length).toBe(3);
+      expect(ifBlock.elseBranch).not.toBeNull();
+    }
   });
 });

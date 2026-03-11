@@ -293,7 +293,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // ── PRO: Flow Graph ──
-  const flowGraphProvider = new FlowGraphProvider(getIndex);
+  const flowGraphProvider = new FlowGraphProvider(getIndex, context.extensionUri);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('tyranodev.showFlowGraph', async () => {
@@ -304,6 +304,15 @@ export function activate(context: vscode.ExtensionContext): void {
         await indexer.indexWorkspace();
       }
 
+      const graph = flowGraphProvider.buildGraph();
+
+      if (graph.nodes.length === 0) {
+        vscode.window.showWarningMessage(
+          vscode.l10n.t('Flow Graph: No scenarios found. Open a TyranoScript project with .ks files.'),
+        );
+        return;
+      }
+
       const panel = vscode.window.createWebviewPanel(
         'tyranodev.flowGraph',
         localize('TyranoCode: Scenario Flow Graph', 'TyranoCode: シナリオフローグラフ'),
@@ -311,8 +320,7 @@ export function activate(context: vscode.ExtensionContext): void {
         { enableScripts: true },
       );
 
-      const graph = flowGraphProvider.buildGraph();
-      panel.webview.html = flowGraphProvider.renderHtml(graph);
+      panel.webview.html = flowGraphProvider.renderHtml(graph, panel.webview);
 
       panel.webview.onDidReceiveMessage(msg => {
         if (msg.type === 'navigate') {
@@ -321,6 +329,7 @@ export function activate(context: vscode.ExtensionContext): void {
             const uri = vscode.Uri.joinPath(workspaceFolder.uri, msg.file);
             vscode.window.showTextDocument(uri, {
               selection: new vscode.Range(msg.line, 0, msg.line, 0),
+              viewColumn: vscode.ViewColumn.One,
             });
           }
         }

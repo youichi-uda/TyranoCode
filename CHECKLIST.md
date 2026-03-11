@@ -277,6 +277,94 @@
 
 ---
 
+## PRO機能 #20: フローチャート表示
+
+### Claude が確認可能 ✅
+- [☑] buildGraph() のノード/エッジ抽出ロジック（ユニットテスト済）
+- [☑] LABEL_REF_TAGS 経由の jump/call/button/glink エッジ検出
+- [☑] cross-file jump/call エッジ抽出
+- [☑] if ブロック・マクロ定義内のエッジ抽出
+- [☑] 動的ラベル（&prefix）のスキップ
+- [☑] fallthrough エッジ（シーン先頭→最初のラベル）
+
+### 手動確認が必要 🔧
+- [ ] `Ctrl+Shift+P` → `TyranoCode: Show Flow Graph` を実行
+- [ ] Webview パネルが開き、ノード（シーン=緑、ラベル=青）とエッジが表示される
+- [ ] ノードクリック → 該当ファイル・行にジャンプ
+- [ ] パン（ドラッグ）とズーム（スクロール）が動作する
+- [ ] 凡例（Scene / Label / jump / call / choice）が表示される
+- [ ] `+` / `−` / `⊞` ボタンでズーム・フィットが動作する
+
+---
+
+## PRO機能 #21: ブレークポイントデバッガ
+
+### Claude が確認可能 ✅
+- [☑] DAP デバッグアダプタの登録（extension.ts で registerDebugAdapterDescriptorFactory）
+- [☑] package.json の debuggers 設定（type: tyranoscript, configurationAttributes）
+- [☑] breakpoints 設定（language: tyranoscript）
+
+### 手動確認が必要 🔧
+- [ ] `.vscode/launch.json` に TyranoScript デバッグ設定を追加できる
+- [ ] `.ks` ファイルの行番号クリックでブレークポイントが設置できる（赤い丸が出る）
+- [ ] F5 でデバッグセッションが起動する（WebSocket サーバーが立ち上がる）
+- [ ] ※ ランタイム接続テストは TyranoScript ゲームが実行中の環境が必要
+
+> **注意**: デバッガはゲームランタイムに `debug-bridge.js` を注入して WebSocket 接続する設計。完全テストにはブラウザで TyranoScript ゲームを実行中の環境が必要。
+
+---
+
+## PRO機能 #22: 自動テストランナー
+
+### Claude が確認可能 ✅
+- [☑] 選択肢検出ロジック（button/glink + [s] パターン）（ユニットテスト済）
+- [☑] ルート探索 BFS（選択肢の組合せ生成、MAX_ROUTES=500 制限）
+- [☑] 未到達ラベル検出ロジック（ユニットテスト済）
+- [☑] LABEL_REF_TAGS 経由の参照ラベル収集
+
+### 手動確認が必要 🔧
+- [ ] `Ctrl+Shift+P` → `TyranoCode: Run All Routes` を実行
+- [ ] Output パネル（`TyranoCode Test Runner`）にルート解析結果が表示される
+- [ ] カバレッジレポート（ファイル数、ラベル数、選択肢数）が表示される
+- [ ] エラーがある場合、Problems パネルに diagnostics が表示される（30秒後に自動消去）
+- [ ] 未到達ラベルがあれば一覧表示される
+
+---
+
+## PRO機能 #23: パフォーマンスプロファイラ
+
+### Claude が確認可能 ✅
+- [☑] タグ数・ラベル数・リソース数カウント（ユニットテスト済）
+- [☑] トランジション検出（bg, chara_show, trans 等）
+- [☑] eval/iscript カウント
+- [☑] 選択肢ポイント検出
+- [☑] 複雑度分類（low/medium/high/critical 閾値）
+- [☑] if ブロック内の再帰的走査
+
+### 手動確認が必要 🔧
+- [ ] `Ctrl+Shift+P` → `TyranoCode: Profile Scene` を実行
+- [ ] Output パネル（`TyranoCode Profiler`）にプロファイル結果が表示される
+- [ ] プロジェクト概要（合計シーン/タグ/ラベル/リソース）が出る
+- [ ] リソース種別（image/audio/video 等）の内訳が出る
+- [ ] シーン複雑度ランキング（○/△/▲/● + LOW〜CRITICAL）が表示される
+- [ ] 警告（高トランジション密度、多 eval、多画像ロード、長 wait 等）があれば表示される
+
+---
+
+## PRO機能 #24: ライセンス管理
+
+### Claude が確認可能 ✅
+- [☑] LicenseManager の初期化・ステータスバー表示（extension.ts のコード確認済）
+- [☑] PRO コマンド実行時の `licenseManager.requirePro()` ゲート
+
+### 手動確認が必要 🔧
+- [ ] PRO コマンド実行時にライセンスキー入力ダイアログが表示される
+- [ ] ステータスバーに「$(code) TyranoCode」（Free）が表示される
+- [ ] ステータスバークリック → ライセンスアクティベーション画面が出る
+- [ ] ※ ライセンス検証は未実装（Phase 2 最後のタスク）
+
+---
+
 ## テスト（自動）
 
 - [ ] **確認手順**: VS Code のターミナルで以下を実行:
@@ -284,7 +372,13 @@
   cd tyranodev
   npm run test:unit
   ```
-- [ ] **期待結果**: `634 tests passed` と表示される（テストファイル 2つ: `tag-database.test.ts`, `providers.test.ts`）
+- [ ] **期待結果**: `681 tests passed` と表示される（テストファイル 2つ: `tag-database.test.ts` 587件, `providers.test.ts` 94件）
+
+---
+
+## コンパイル確認
+
+- [ ] `npm run compile` がエラーなしで完了する
 
 ---
 
