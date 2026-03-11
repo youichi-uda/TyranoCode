@@ -202,7 +202,7 @@
               "port": {
                 "type": "number",
                 "description": "%debugger.port.description%",
-                "default": 3100
+                "default": 9871
               }
             }
           }
@@ -217,7 +217,7 @@
               "name": "Debug TyranoScript",
               "projectRoot": "^\"\\${workspaceFolder}\"",
               "scene": "first.ks",
-              "port": 3100
+              "port": 9871
             }
           }
         ]
@@ -257,6 +257,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "@vscode/debugadapter": "^1.65.0",
@@ -267,6 +268,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@vscode/debugadapter": "^1.65.0"
+    "@vscode/debugadapter": "^1.65.0",
+    "ws": "^8.19.0"
   }
 }

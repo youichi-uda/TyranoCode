@@ -45,6 +45,8 @@ import { FlowGraphProvider } from './flow-graph/flow-graph-provider';
 import { localize } from './language/i18n';
 import { registerExtendedTags } from './language/tag-database-ext';
 import { TestRunner } from './test-runner/test-runner';
+import { TyranoDebugSession } from './debugger/debug-adapter';
+import { SceneProfiler } from './profiler/profiler';
 
 const LANGUAGE_ID = 'tyranoscript';
 
@@ -326,6 +328,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  // ── PRO: Debugger ──
+  context.subscriptions.push(
+    vscode.debug.registerDebugAdapterDescriptorFactory('tyranoscript', {
+      createDebugAdapterDescriptor(_session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
+        return new vscode.DebugAdapterInlineImplementation(new TyranoDebugSession());
+      },
+    }),
+  );
+
   // ── PRO: Auto-Test Runner ──
   const testRunner = new TestRunner(getIndex);
 
@@ -341,12 +352,19 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  // ── PRO: Profiler (stub) ──
+  // ── PRO: Profiler ──
+  const profiler = new SceneProfiler(getIndex);
   context.subscriptions.push(
     vscode.commands.registerCommand('tyranodev.profileScene', async () => {
       if (!(await licenseManager.requirePro('profiler'))) return;
-      vscode.window.showInformationMessage(vscode.l10n.t('TyranoCode Profiler: Coming soon in next release.'));
+
+      if (indexer.getIndex().scenarios.size === 0) {
+        await indexer.indexWorkspace();
+      }
+
+      profiler.profileProject();
     }),
+    { dispose: () => profiler.dispose() },
   );
 
   // ── PRO: Refactoring ──
