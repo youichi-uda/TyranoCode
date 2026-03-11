@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { TAG_DATABASE } from './tag-database';
+import { localize } from './i18n';
 
 export class TyranoSignatureProvider implements vscode.SignatureHelpProvider {
 
@@ -55,18 +56,18 @@ export class TyranoSignatureProvider implements vscode.SignatureHelpProvider {
     }
     signatureLabel += ']';
 
-    const signatureInfo = new vscode.SignatureInformation(signatureLabel, tagDef.description);
+    const signatureInfo = new vscode.SignatureInformation(signatureLabel, localize(tagDef.description, tagDef.descriptionJa));
 
     for (let i = 0; i < tagDef.params.length; i++) {
       const param = tagDef.params[i];
       const doc = new vscode.MarkdownString();
       doc.appendMarkdown(`**${param.name}** — \`${param.type}\``);
       if (param.required) {
-        doc.appendMarkdown(' _(required)_');
+        doc.appendMarkdown(localize(' _(required)_', ' _(必須)_'));
       }
-      doc.appendMarkdown(`\n\n${param.description}`);
+      doc.appendMarkdown(`\n\n${localize(param.description, param.descriptionJa)}`);
       if (param.default) {
-        doc.appendMarkdown(`\n\nDefault: \`${param.default}\``);
+        doc.appendMarkdown(`\n\n${localize('Default', '既定値')}: \`${param.default}\``);
       }
       if (param.enumValues && param.enumValues.length > 0) {
         doc.appendMarkdown(`\n\nValues: ${param.enumValues.map(v => `\`${v}\``).join(', ')}`);

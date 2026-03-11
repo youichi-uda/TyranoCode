@@ -6,15 +6,18 @@
 
 import * as vscode from 'vscode';
 import { ProjectIndex, VariableInfo } from '../parser/types';
+import { localize } from './i18n';
 
 type VariableScope = 'f' | 'sf' | 'tf' | 'mp';
 
-const SCOPE_LABELS: Record<VariableScope, string> = {
-  f: 'f. (Game Variables)',
-  sf: 'sf. (System Variables)',
-  tf: 'tf. (Temporary Variables)',
-  mp: 'mp. (Macro Parameters)',
-};
+function getScopeLabels(): Record<VariableScope, string> {
+  return {
+    f: localize('f. (Game Variables)', 'f. (ゲーム変数)'),
+    sf: localize('sf. (System Variables)', 'sf. (システム変数)'),
+    tf: localize('tf. (Temporary Variables)', 'tf. (一時変数)'),
+    mp: localize('mp. (Macro Parameters)', 'mp. (マクロパラメータ)'),
+  };
+}
 
 const SCOPE_ICONS: Record<VariableScope, vscode.ThemeIcon> = {
   f: new vscode.ThemeIcon('database'),
@@ -117,7 +120,7 @@ export class VariableTreeDataProvider implements vscode.TreeDataProvider<TreeEle
 
   private buildScopeItem(element: { scope: VariableScope }): vscode.TreeItem {
     const item = new vscode.TreeItem(
-      SCOPE_LABELS[element.scope],
+      getScopeLabels()[element.scope],
       vscode.TreeItemCollapsibleState.Expanded,
     );
     item.iconPath = SCOPE_ICONS[element.scope];
@@ -135,7 +138,7 @@ export class VariableTreeDataProvider implements vscode.TreeDataProvider<TreeEle
       `${element.scope}.${element.name}`,
       vscode.TreeItemCollapsibleState.Collapsed,
     );
-    item.description = `${writeCount} write, ${readCount} read`;
+    item.description = localize(`${writeCount} write, ${readCount} read`, `${writeCount} 書込, ${readCount} 読取`);
     item.iconPath = new vscode.ThemeIcon('symbol-variable');
     item.contextValue = 'variable';
     return item;
@@ -161,7 +164,7 @@ export class VariableTreeDataProvider implements vscode.TreeDataProvider<TreeEle
       const endPos = new vscode.Position(info.range.end.line, info.range.end.column);
       item.command = {
         command: 'vscode.open',
-        title: 'Go to usage',
+        title: localize('Go to usage', '使用箇所へ移動'),
         arguments: [uri, { selection: new vscode.Range(startPos, endPos) }],
       };
     }

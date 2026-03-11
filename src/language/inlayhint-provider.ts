@@ -8,6 +8,7 @@
 
 import * as vscode from 'vscode';
 import { ProjectIndex, ScenarioNode, TagNode } from '../parser/types';
+import { localize } from './i18n';
 
 export class TyranoInlayHintsProvider implements vscode.InlayHintsProvider {
   constructor(private getIndex: () => ProjectIndex | undefined) {}
@@ -39,25 +40,43 @@ export class TyranoInlayHintsProvider implements vscode.InlayHintsProvider {
     hints: vscode.InlayHint[],
     index: ProjectIndex | undefined,
   ): void {
-    // Match tag patterns: [tagname attr="value" ...]
-    const tagRegex = /\[(\w+)((?:\s+\w+(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s\]]+)?)*)\s*\]/g;
+    // Match tag patterns: [tagname attr="value" ...] and @tagname attr="value" ...
+    const bracketTagRegex = /\[(\w+)((?:\s+\w+(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s\]]+)?)*)\s*\]/g;
+    const atTagRegex = /^@(\w+)((?:\s+\w+(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*\S+)?)*)$/;
+
+    const matches: Array<{ tagName: string; attrText: string; tagStartCol: number; nameLen: number }> = [];
+
     let tagMatch: RegExpExecArray | null;
+    while ((tagMatch = bracketTagRegex.exec(lineText)) !== null) {
+      matches.push({
+        tagName: tagMatch[1],
+        attrText: tagMatch[2],
+        tagStartCol: tagMatch.index,
+        nameLen: tagMatch[1].length + 1, // +1 for '['
+      });
+    }
 
-    while ((tagMatch = tagRegex.exec(lineText)) !== null) {
-      const tagName = tagMatch[1];
-      const attrText = tagMatch[2];
-      const tagStartCol = tagMatch.index;
+    const atMatch = atTagRegex.exec(lineText);
+    if (atMatch) {
+      matches.push({
+        tagName: atMatch[1],
+        attrText: atMatch[2],
+        tagStartCol: 0,
+        nameLen: atMatch[1].length + 1, // +1 for '@'
+      });
+    }
 
-      const attrs = this.parseAttributes(attrText, tagStartCol + tagName.length + 1);
+    for (const m of matches) {
+      const attrs = this.parseAttributes(m.attrText, m.tagStartCol + m.nameLen);
 
       // Storage attribute → show resolved file path
-      this.addStorageHint(tagName, attrs, lineNum, hints);
+      this.addStorageHint(m.tagName, attrs, lineNum, hints);
 
       // Character tags → show display name (jname)
-      this.addCharacterNameHint(tagName, attrs, lineNum, hints, index);
+      this.addCharacterNameHint(m.tagName, attrs, lineNum, hints, index);
 
       // [eval] → show variable scope hints
-      this.addEvalScopeHint(tagName, attrs, lineNum, hints);
+      this.addEvalScopeHint(m.tagName, attrs, lineNum, hints);
     }
   }
 
@@ -106,7 +125,7 @@ export class TyranoInlayHintsProvider implements vscode.InlayHintsProvider {
         vscode.InlayHintKind.Parameter,
       );
       hint.paddingLeft = true;
-      hint.tooltip = `Resolved path: ${resolvedDir}/${fileName}`;
+      hint.tooltip = localize(`Resolved path: ${resolvedDir}/${fileName}`, `解決パス: ${resolvedDir}/${fileName}`);
       hints.push(hint);
     }
   }
@@ -144,7 +163,7 @@ export class TyranoInlayHintsProvider implements vscode.InlayHintsProvider {
         vscode.InlayHintKind.Parameter,
       );
       hint.paddingLeft = true;
-      hint.tooltip = `Display name: ${jname}`;
+      hint.tooltip = localize(`Display name: ${jname}`, `表示名: ${jname}`);
       hints.push(hint);
     }
   }
@@ -163,13 +182,14 @@ export class TyranoInlayHintsProvider implements vscode.InlayHintsProvider {
     const expAttr = attrs.find(a => a.name === 'exp');
     if (!expAttr?.value) return;
 
-    const scopeLabels: Record<string, string> = {
-      'f.': 'game var',
-      'sf.': 'system var',
-      'tf.': 'temp var',
-    };
+    // Order: longest prefix first so "sf." isn't caught by "f."
+    const scopeLabels: Array<[string, string]> = [
+      ['sf.', localize('system var', 'システム変数')],
+      ['tf.', localize('temp var', '一時変数')],
+      ['f.', localize('game var', 'ゲーム変数')],
+    ];
 
-    for (const [prefix, label] of Object.entries(scopeLabels)) {
+    for (const [prefix, label] of scopeLabels) {
       if (expAttr.value.includes(prefix)) {
         const position = new vscode.Position(lineNum, expAttr.valueStartCol);
         const hint = new vscode.InlayHint(
@@ -178,7 +198,7 @@ export class TyranoInlayHintsProvider implements vscode.InlayHintsProvider {
           vscode.InlayHintKind.Type,
         );
         hint.paddingRight = true;
-        hint.tooltip = `Expression uses ${label}s (${prefix}*)`;
+        hint.tooltip = localize(`Expression uses ${label}s (${prefix}*)`, `式で${label}を使用 (${prefix}*)`);
         hints.push(hint);
         // Only show the first matching scope to avoid clutter
         break;

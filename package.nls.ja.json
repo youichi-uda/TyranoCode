@@ -29,6 +29,10 @@
   "debugger.snippet.label": "TyranoScript: 起動",
   "debugger.snippet.description": "TyranoScript ゲームをデバッガー接続で起動",
 
+  "command.showVariables": "TyranoCode: 変数を表示",
+  "command.refreshVariables": "TyranoCode: 変数を更新",
+  "command.previewScene": "TyranoCode: シーンプレビュー",
+
   "view.variableWatch": "TyranoScript 変数",
   "view.tagTracker": "タグ実行トラッカー"
 }

@@ -15,6 +15,7 @@ import {
   TagNode,
   IfBlockNode,
 } from '../parser/types';
+import { localize } from './i18n';
 
 // ── Visual element types extracted from AST ──
 
@@ -24,6 +25,7 @@ interface BackgroundElement {
 
 interface CharacterElement {
   name: string;
+  storage: string;
   left: number;
   top: number;
 }
@@ -45,9 +47,9 @@ interface BranchIndicator {
 }
 
 interface SceneSnapshot {
-  background: BackgroundElement | null;
+  backgrounds: BackgroundElement[];
   characters: Map<string, CharacterElement>;
-  dialog: DialogElement | null;
+  dialogs: DialogElement[];
   labels: LabelElement[];
   branches: BranchIndicator[];
 }
@@ -71,9 +73,15 @@ export class TyranoPreviewProvider {
     } else {
       this.panel = vscode.window.createWebviewPanel(
         'tyranodev.scenePreview',
-        'TyranoCode: Scene Preview',
+        localize('TyranoCode: Scene Preview', 'TyranoCode: シーンプレビュー'),
         vscode.ViewColumn.Beside,
-        { enableScripts: false, retainContextWhenHidden: true },
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: vscode.workspace.workspaceFolders
+            ? [vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, 'data')]
+            : [],
+        },
       );
 
       this.panel.onDidDispose(() => {
@@ -91,7 +99,7 @@ export class TyranoPreviewProvider {
     if (!this.panel) return;
 
     const snapshot = this.extractScene(document);
-    this.panel.webview.html = this.renderHtml(snapshot, document.fileName);
+    this.panel.webview.html = this.renderHtml(snapshot, document.fileName, this.panel.webview);
   }
 
   dispose(): void {
@@ -105,19 +113,59 @@ export class TyranoPreviewProvider {
     this.parser = new Parser(fileName);
     const parsed = this.parser.parse(document.getText());
 
+    // Collect chara_new definitions from the entire project
+    const charaDefs = this.collectCharaDefs();
+
     const snapshot: SceneSnapshot = {
-      background: null,
+      backgrounds: [],
       characters: new Map(),
-      dialog: null,
+      dialogs: [],
       labels: [],
       branches: [],
     };
 
     let currentSpeaker = '';
 
-    this.walkNodes(parsed.nodes, snapshot, { speaker: currentSpeaker });
+    this.walkNodes(parsed.nodes, snapshot, { speaker: currentSpeaker, charaDefs });
 
     return snapshot;
+  }
+
+  /**
+   * Collect [chara_new] definitions from all scenarios in the project index.
+   * Returns a map: character name -> { storage (default image path), face -> image path }.
+   */
+  private collectCharaDefs(): Map<string, { storage: string; faces: Map<string, string> }> {
+    const defs = new Map<string, { storage: string; faces: Map<string, string> }>();
+    const index = this.getIndex();
+    if (!index) return defs;
+
+    for (const [, scenario] of index.scenarios) {
+      for (const node of scenario.nodes) {
+        if (node.type !== 'tag') continue;
+        const attr = (name: string) => node.attributes.find(a => a.name === name)?.value;
+
+        if (node.name === 'chara_new') {
+          const name = attr('name');
+          const storage = attr('storage');
+          if (name && storage) {
+            defs.set(name, { storage, faces: new Map() });
+          }
+        } else if (node.name === 'chara_face') {
+          const name = attr('name');
+          const face = attr('face');
+          const storage = attr('storage');
+          if (name && face && storage) {
+            const def = defs.get(name);
+            if (def) {
+              def.faces.set(face, storage);
+            }
+          }
+        }
+      }
+    }
+
+    return defs;
   }
 
   /**
@@ -127,7 +175,7 @@ export class TyranoPreviewProvider {
   private walkNodes(
     nodes: ScenarioNode[],
     snapshot: SceneSnapshot,
-    ctx: { speaker: string },
+    ctx: { speaker: string; charaDefs: Map<string, { storage: string; faces: Map<string, string> }> },
   ): void {
     for (const node of nodes) {
       switch (node.type) {
@@ -161,7 +209,7 @@ export class TyranoPreviewProvider {
   private processTag(
     node: TagNode,
     snapshot: SceneSnapshot,
-    ctx: { speaker: string },
+    ctx: { speaker: string; charaDefs: Map<string, { storage: string; faces: Map<string, string> }> },
   ): void {
     const attr = (name: string): string | undefined =>
       node.attributes.find(a => a.name === name)?.value;
@@ -170,7 +218,7 @@ export class TyranoPreviewProvider {
       case 'bg': {
         const storage = attr('storage');
         if (storage) {
-          snapshot.background = { storage };
+          snapshot.backgrounds.push({ storage });
         }
         break;
       }
@@ -178,8 +226,10 @@ export class TyranoPreviewProvider {
       case 'chara_show': {
         const name = attr('name');
         if (name) {
+          const def = ctx.charaDefs.get(name);
           snapshot.characters.set(name, {
             name,
+            storage: def?.storage ?? '',
             left: parseInt(attr('left') ?? '0', 10) || 0,
             top: parseInt(attr('top') ?? '0', 10) || 0,
           });
@@ -187,16 +237,26 @@ export class TyranoPreviewProvider {
         break;
       }
 
-      case 'chara_hide': {
+      case 'chara_mod': {
+        // Update face: resolve new image path from chara_face defs or derive from name convention
         const name = attr('name');
-        if (name) {
-          snapshot.characters.delete(name);
+        const face = attr('face');
+        if (name && face) {
+          const existing = snapshot.characters.get(name);
+          if (existing) {
+            const def = ctx.charaDefs.get(name);
+            // Try chara_face definition, otherwise derive path by replacing filename
+            const facePath = def?.faces.get(face)
+              ?? (def?.storage ? def.storage.replace(/\/[^/]+$/, `/${face}.png`) : '');
+            existing.storage = facePath;
+          }
         }
         break;
       }
 
+      case 'chara_hide':
       case 'chara_hide_all':
-        snapshot.characters.clear();
+        // Don't remove characters — we want to show all that appeared
         break;
 
       // Speaker name tag: [#speaker_name]
@@ -215,7 +275,7 @@ export class TyranoPreviewProvider {
   private processText(
     content: string,
     snapshot: SceneSnapshot,
-    ctx: { speaker: string },
+    ctx: { speaker: string; charaDefs: Map<string, { storage: string; faces: Map<string, string> }> },
   ): void {
     const trimmed = content.trim();
     if (!trimmed) return;
@@ -226,17 +286,17 @@ export class TyranoPreviewProvider {
       return;
     }
 
-    // Any other non-empty text is dialog
-    snapshot.dialog = {
+    // Any other non-empty text is dialog — accumulate all
+    snapshot.dialogs.push({
       speaker: ctx.speaker,
       text: trimmed,
-    };
+    });
   }
 
   private processIfBlock(
     node: IfBlockNode,
     snapshot: SceneSnapshot,
-    ctx: { speaker: string },
+    ctx: { speaker: string; charaDefs: Map<string, { storage: string; faces: Map<string, string> }> },
   ): void {
     let branchCount = 1; // then-branch
     branchCount += node.elsifBranches.length;
@@ -254,30 +314,67 @@ export class TyranoPreviewProvider {
 
   // ── HTML rendering ──
 
-  private renderHtml(snapshot: SceneSnapshot, fileName: string): string {
-    const bgName = snapshot.background?.storage ?? 'none';
-    const bgHue = this.hashToHue(bgName);
+  private renderHtml(snapshot: SceneSnapshot, fileName: string, webview: vscode.Webview): string {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+    // Resolve a game-relative path (e.g., "chara/sakura/normal.png") to a webview URI
+    const toImageUri = (gamePath: string): string => {
+      if (!workspaceFolder || !gamePath) return '';
+      const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, 'data', 'fgimage', gamePath);
+      return webview.asWebviewUri(fileUri).toString();
+    };
+
+    const toBgUri = (bgFile: string): string => {
+      if (!workspaceFolder || !bgFile) return '';
+      const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, 'data', 'bgimage', bgFile);
+      return webview.asWebviewUri(fileUri).toString();
+    };
+
+    // Build per-bg data for tabs
+    const backgrounds = snapshot.backgrounds.length > 0
+      ? snapshot.backgrounds
+      : [{ storage: 'none' }];
+    const bgTabsHtml = backgrounds
+      .map((bg, i) => {
+        const active = i === 0 ? ' active' : '';
+        return `<button class="bg-tab${active}" data-index="${i}">${this.escapeHtml(bg.storage)}</button>`;
+      })
+      .join('');
+    const bgPanesHtml = backgrounds
+      .map((bg, i) => {
+        const hue = this.hashToHue(bg.storage);
+        const hidden = i === 0 ? '' : ' hidden';
+        const bgUri = toBgUri(bg.storage);
+        const bgStyle = bgUri
+          ? `background:url('${bgUri}') center/cover no-repeat, linear-gradient(135deg,hsl(${hue},30%,15%) 0%,hsl(${hue},40%,25%) 100%)`
+          : `background:linear-gradient(135deg,hsl(${hue},30%,15%) 0%,hsl(${hue},40%,25%) 100%)`;
+        return `<div class="bg-pane${hidden}" data-index="${i}" style="${bgStyle}">
+          <span class="bg-label">${this.escapeHtml(bg.storage)}</span>
+        </div>`;
+      })
+      .join('');
 
     const characterBoxes = Array.from(snapshot.characters.values())
       .map(ch => {
         const hue = this.hashToHue(ch.name);
-        // Scale positions: TyranoScript uses pixel coords on a typically
-        // 1280x720 canvas. We display on a 960x540 area, so scale by 0.75.
         const scaledLeft = Math.round(ch.left * 0.75);
         const scaledTop = Math.round(ch.top * 0.75);
+        const imgUri = toImageUri(ch.storage);
+        const imgHtml = imgUri
+          ? `<img class="character-img" src="${imgUri}" alt="${this.escapeHtml(ch.name)}">`
+          : `<div class="character-body" style="background:hsl(${hue},40%,20%)"></div>`;
         return `<div class="character" style="left:${scaledLeft}px;top:${scaledTop}px;border-color:hsl(${hue},60%,50%)">
           <span class="character-name" style="background:hsl(${hue},60%,30%)">${this.escapeHtml(ch.name)}</span>
-          <div class="character-body" style="background:hsl(${hue},40%,20%)"></div>
+          ${imgHtml}
         </div>`;
       })
       .join('\n');
 
-    const dialogHtml = snapshot.dialog
-      ? `<div class="dialog-box">
-          ${snapshot.dialog.speaker ? `<div class="dialog-speaker">${this.escapeHtml(snapshot.dialog.speaker)}</div>` : ''}
-          <div class="dialog-text">${this.escapeHtml(snapshot.dialog.text)}</div>
-        </div>`
-      : '';
+    const dialogItems = snapshot.dialogs
+      .map(d =>
+        `<div class="dialog-entry">${d.speaker ? `<span class="dialog-speaker">${this.escapeHtml(d.speaker)}</span> ` : ''}` +
+        `<span class="dialog-text">${this.escapeHtml(d.text)}</span></div>`)
+      .join('\n');
 
     const labelItems = snapshot.labels
       .map(
@@ -330,27 +427,63 @@ export class TyranoPreviewProvider {
       font-weight: 600;
     }
 
+    /* ── BG Tabs ── */
+    .bg-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      background: rgba(0,0,0,0.5);
+      padding: 6px 8px;
+    }
+
+    .bg-tab {
+      background: rgba(255,255,255,0.08);
+      color: var(--vscode-editor-foreground, #ccc);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 3px;
+      padding: 3px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    .bg-tab:hover { background: rgba(255,255,255,0.15); }
+    .bg-tab.active {
+      background: rgba(86,156,214,0.4);
+      border-color: #569cd6;
+      color: #fff;
+      font-weight: 600;
+    }
+
     /* ── Stage area ── */
     .stage-container {
       position: relative;
-      width: 960px;
-      height: 540px;
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 16 / 9;
       border: 1px solid var(--vscode-panel-border, #444);
       border-radius: 4px;
       overflow: hidden;
       flex-shrink: 0;
     }
 
-    .stage-bg {
+    .bg-pane {
       position: absolute;
       inset: 0;
-      background: linear-gradient(135deg, hsl(${bgHue},30%,15%) 0%, hsl(${bgHue},40%,25%) 100%);
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .stage-bg .bg-label {
+    .bg-pane.hidden { display: none; }
+
+    .bg-pane .bg-label {
       font-size: 16px;
       opacity: 0.35;
       letter-spacing: 2px;
@@ -362,58 +495,40 @@ export class TyranoPreviewProvider {
     /* ── Characters ── */
     .character {
       position: absolute;
-      width: 80px;
-      height: 160px;
-      border: 2px solid;
-      border-radius: 6px;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      align-items: center;
+      z-index: 5;
+      pointer-events: none;
     }
 
     .character-name {
       display: block;
-      padding: 2px 6px;
+      padding: 2px 8px;
       font-size: 10px;
       font-weight: 600;
       text-align: center;
       color: #eee;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      border-radius: 3px;
+      margin-bottom: 2px;
+    }
+
+    .character-img {
+      max-height: 400px;
+      width: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
     }
 
     .character-body {
-      flex: 1;
+      width: 80px;
+      height: 160px;
       opacity: 0.5;
+      border-radius: 4px;
     }
 
-    /* ── Dialog box ── */
-    .dialog-box {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(4px);
-      padding: 14px 20px;
-      min-height: 100px;
-    }
-
-    .dialog-speaker {
-      font-weight: 700;
-      font-size: 14px;
-      color: #e8c870;
-      margin-bottom: 6px;
-    }
-
-    .dialog-text {
-      font-size: 14px;
-      line-height: 1.6;
-      color: #eee;
-    }
-
-    /* ── Sidebar panels ── */
+    /* ── Panels ── */
     .panels {
       width: 100%;
       max-width: 980px;
@@ -427,8 +542,12 @@ export class TyranoPreviewProvider {
       border: 1px solid var(--vscode-panel-border, #444);
       border-radius: 4px;
       padding: 10px 12px;
-      max-height: 260px;
+      max-height: 300px;
       overflow-y: auto;
+    }
+
+    .panel.dialog-panel {
+      flex: 2;
     }
 
     .panel-title {
@@ -447,21 +566,19 @@ export class TyranoPreviewProvider {
       font-size: 12px;
     }
 
-    .label-marker {
-      color: #569cd6;
-      font-weight: 700;
-    }
+    .label-marker { color: #569cd6; font-weight: 700; }
+    .branch-icon { color: #dcdcaa; font-size: 10px; }
+    .label-line { margin-left: auto; opacity: 0.4; font-size: 10px; }
 
-    .branch-icon {
-      color: #dcdcaa;
-      font-size: 10px;
+    .dialog-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      line-height: 1.5;
+      font-size: 12px;
     }
-
-    .label-line {
-      margin-left: auto;
-      opacity: 0.4;
-      font-size: 10px;
-    }
+    .dialog-entry:last-child { border-bottom: none; }
+    .dialog-speaker { font-weight: 700; color: #e8c870; margin-right: 4px; }
+    .dialog-text { color: #eee; }
 
     .empty-note {
       opacity: 0.35;
@@ -473,27 +590,41 @@ export class TyranoPreviewProvider {
 <body>
   <div class="header">
     <span class="file-name">${this.escapeHtml(shortName)}</span>
-    <span>&mdash; Scene Preview (static analysis)</span>
+    <span>&mdash; ${localize('Scene Preview (static analysis)', 'シーンプレビュー (静的解析)')}</span>
   </div>
 
   <div class="stage-container">
-    <div class="stage-bg">
-      <span class="bg-label">bg: ${this.escapeHtml(bgName)}</span>
-    </div>
+    <div class="bg-tabs">${bgTabsHtml}</div>
+    ${bgPanesHtml}
     ${characterBoxes}
-    ${dialogHtml}
   </div>
 
   <div class="panels">
-    <div class="panel">
-      <div class="panel-title">Labels</div>
-      ${labelItems || '<div class="empty-note">No labels</div>'}
+    <div class="panel dialog-panel">
+      <div class="panel-title">${localize('Dialog', 'ダイアログ')} (${snapshot.dialogs.length})</div>
+      ${dialogItems || `<div class="empty-note">${localize('No dialog', 'ダイアログなし')}</div>`}
     </div>
     <div class="panel">
-      <div class="panel-title">Branches</div>
-      ${branchItems || '<div class="empty-note">No branches</div>'}
+      <div class="panel-title">${localize('Labels', 'ラベル')} (${snapshot.labels.length})</div>
+      ${labelItems || `<div class="empty-note">${localize('No labels', 'ラベルなし')}</div>`}
+    </div>
+    <div class="panel">
+      <div class="panel-title">${localize('Branches', '分岐')} (${snapshot.branches.length})</div>
+      ${branchItems || `<div class="empty-note">${localize('No branches', '分岐なし')}</div>`}
     </div>
   </div>
+
+  <script>
+    document.querySelectorAll('.bg-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const idx = tab.dataset.index;
+        document.querySelectorAll('.bg-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.bg-pane').forEach(p => p.classList.add('hidden'));
+        tab.classList.add('active');
+        document.querySelector('.bg-pane[data-index="' + idx + '"]').classList.remove('hidden');
+      });
+    });
+  </script>
 </body>
 </html>`;
   }
@@ -540,7 +671,7 @@ export function registerPreview(
     vscode.commands.registerCommand('tyranodev.previewScene', () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
-        vscode.window.showWarningMessage('No active .ks file to preview.');
+        vscode.window.showWarningMessage(localize('No active .ks file to preview.', 'プレビュー対象の .ks ファイルがありません。'));
         return;
       }
       provider.show(editor.document);

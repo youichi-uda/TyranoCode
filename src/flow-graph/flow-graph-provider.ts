@@ -6,9 +6,10 @@
  */
 
 import * as vscode from 'vscode';
-import { ProjectIndex, ScenarioNode, TagNode, IfBlockNode } from '../parser/types';
+import { ProjectIndex, ScenarioNode, TagNode, IfBlockNode, LABEL_REF_TAGS } from '../parser/types';
+import { localize } from '../language/i18n';
 
-interface FlowNode {
+export interface FlowNode {
   id: string;
   label: string;
   file: string;
@@ -16,7 +17,7 @@ interface FlowNode {
   type: 'label' | 'scene-start' | 'choice' | 'end';
 }
 
-interface FlowEdge {
+export interface FlowEdge {
   from: string;
   to: string;
   label: string;
@@ -29,32 +30,10 @@ export interface FlowGraph {
   edges: FlowEdge[];
 }
 
-export class FlowGraphProvider implements vscode.WebviewViewProvider {
-  private view?: vscode.WebviewView;
-
+export class FlowGraphProvider {
   constructor(
     private getIndex: () => ProjectIndex | undefined,
-    private extensionUri: vscode.Uri,
   ) {}
-
-  resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
-  ): void {
-    this.view = webviewView;
-    webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [this.extensionUri],
-    };
-    this.refresh();
-  }
-
-  refresh(): void {
-    if (!this.view) return;
-    const graph = this.buildGraph();
-    this.view.webview.html = this.getHtml(graph);
-  }
 
   /**
    * Build the flow graph from the project index.
@@ -100,8 +79,397 @@ export class FlowGraphProvider implements vscode.WebviewViewProvider {
       this.extractEdges(scenario.nodes, file, null, edges, nodes, nodeIds);
     }
 
+    // Add fallthrough edges from scene-start to the first label in each file
+    for (const [file, scenario] of index.scenarios) {
+      const labels = [...scenario.labels.entries()];
+      if (labels.length > 0) {
+        const firstLabel = labels[0];
+        const sceneId = `scene:${file}`;
+        const labelId = `${file}:*${firstLabel[0]}`;
+        // Only add if no explicit jump from scene start already exists
+        if (!edges.some(e => e.from === sceneId && e.to === labelId)) {
+          edges.push({
+            from: sceneId,
+            to: labelId,
+            label: '',
+            type: 'fallthrough',
+          });
+        }
+      }
+    }
+
     return { nodes, edges };
   }
+
+  /**
+   * Render the flow graph as an HTML page for a WebviewPanel.
+   */
+  renderHtml(graph: FlowGraph): string {
+    // Compute layout
+    const layout = this.computeLayout(graph);
+    const graphJson = JSON.stringify({ ...graph, layout });
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${localize('Scenario Flow Graph', 'シナリオフローグラフ')}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--vscode-editor-background, #1e1e1e);
+      color: var(--vscode-editor-foreground, #ccc);
+      font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    #canvas { width: 100vw; height: 100vh; }
+
+    svg { display: block; }
+
+    /* ── Nodes ── */
+    .node { cursor: pointer; }
+    .node:hover rect, .node:hover ellipse { filter: brightness(1.3); }
+
+    .node-scene rect {
+      fill: #2d5a3d;
+      stroke: #4caf50;
+      stroke-width: 2;
+      rx: 8;
+    }
+
+    .node-label rect {
+      fill: #2a3a5c;
+      stroke: #569cd6;
+      stroke-width: 1.5;
+      rx: 6;
+    }
+
+    .node-choice rect {
+      fill: #5a4a2d;
+      stroke: #e0a030;
+      stroke-width: 1.5;
+      rx: 6;
+    }
+
+    .node-end ellipse {
+      fill: #5a2d2d;
+      stroke: #e05050;
+      stroke-width: 2;
+    }
+
+    .node text {
+      fill: #eee;
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    .node .file-label {
+      fill: #888;
+      font-size: 9px;
+    }
+
+    /* ── Edges ── */
+    .edge path {
+      fill: none;
+      stroke-width: 1.5;
+    }
+
+    .edge-jump path { stroke: #888; }
+    .edge-call path { stroke: #88c0d0; stroke-dasharray: 6,3; }
+    .edge-choice path { stroke: #e0a030; }
+    .edge-fallthrough path { stroke: #555; stroke-dasharray: 2,4; }
+
+    .edge text {
+      fill: var(--vscode-descriptionForeground, #888);
+      font-size: 10px;
+      pointer-events: none;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 4px;
+      z-index: 100;
+    }
+
+    .toolbar button {
+      background: var(--vscode-button-background, #0e639c);
+      color: var(--vscode-button-foreground, #fff);
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    .toolbar button:hover {
+      background: var(--vscode-button-hoverBackground, #1177bb);
+    }
+
+    /* ── Legend ── */
+    .legend {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(30,30,30,0.85);
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 11px;
+      z-index: 100;
+      display: flex;
+      gap: 14px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-line {
+      width: 24px;
+      height: 2px;
+      display: inline-block;
+    }
+
+    .legend-box {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    /* ── Info bar ── */
+    .info {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 11px;
+      color: #666;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <svg id="svg" width="100%" height="100%"></svg>
+
+  <div class="toolbar">
+    <button id="btn-zoom-in" title="Zoom In">+</button>
+    <button id="btn-zoom-out" title="Zoom Out">−</button>
+    <button id="btn-fit" title="Fit All">⊞</button>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-box" style="background:#2d5a3d;border:1px solid #4caf50"></span> ${localize('Scene', 'シーン')}</div>
+    <div class="legend-item"><span class="legend-box" style="background:#2a3a5c;border:1px solid #569cd6"></span> ${localize('Label', 'ラベル')}</div>
+    <div class="legend-item"><span class="legend-line" style="background:#888"></span> jump</div>
+    <div class="legend-item"><span class="legend-line" style="background:#88c0d0;border-top:2px dashed #88c0d0;height:0"></span> call</div>
+    <div class="legend-item"><span class="legend-line" style="background:#e0a030"></span> ${localize('choice', '選択肢')}</div>
+  </div>
+
+  <div class="info" id="info">
+    ${localize('Nodes', 'ノード')}: ${graph.nodes.length} | ${localize('Edges', 'エッジ')}: ${graph.edges.length}
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    const data = ${graphJson};
+    const graph = data;
+    const layout = data.layout; // { positions: { id: {x,y} }, width, height }
+
+    const svgEl = document.getElementById('svg');
+    const ns = 'http://www.w3.org/2000/svg';
+
+    const NODE_W = 140;
+    const NODE_H = 44;
+    const PADDING = 40;
+
+    let scale = 1;
+    let tx = 0, ty = 0;
+
+    function render() {
+      svgEl.innerHTML = '';
+
+      // Defs (arrow markers)
+      const defs = document.createElementNS(ns, 'defs');
+      const edgeTypes = [
+        { id: 'arrow-jump', color: '#888' },
+        { id: 'arrow-call', color: '#88c0d0' },
+        { id: 'arrow-choice', color: '#e0a030' },
+        { id: 'arrow-fallthrough', color: '#555' },
+      ];
+      for (const et of edgeTypes) {
+        const marker = document.createElementNS(ns, 'marker');
+        marker.setAttribute('id', et.id);
+        marker.setAttribute('viewBox', '0 0 10 10');
+        marker.setAttribute('refX', '10');
+        marker.setAttribute('refY', '5');
+        marker.setAttribute('markerWidth', '7');
+        marker.setAttribute('markerHeight', '7');
+        marker.setAttribute('orient', 'auto-start-reverse');
+        const path = document.createElementNS(ns, 'path');
+        path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+        path.setAttribute('fill', et.color);
+        marker.appendChild(path);
+        defs.appendChild(marker);
+      }
+      svgEl.appendChild(defs);
+
+      const root = document.createElementNS(ns, 'g');
+      root.setAttribute('transform', \`translate(\${tx},\${ty}) scale(\${scale})\`);
+
+      // Draw edges first (below nodes)
+      for (const edge of graph.edges) {
+        const fromPos = layout.positions[edge.from];
+        const toPos = layout.positions[edge.to];
+        if (!fromPos || !toPos) continue;
+
+        const g = document.createElementNS(ns, 'g');
+        g.setAttribute('class', 'edge edge-' + edge.type);
+
+        const x1 = fromPos.x + NODE_W / 2;
+        const y1 = fromPos.y + NODE_H;
+        const x2 = toPos.x + NODE_W / 2;
+        const y2 = toPos.y;
+
+        // Bezier curve
+        const dy = Math.abs(y2 - y1);
+        const cp = Math.max(30, dy * 0.4);
+        const path = document.createElementNS(ns, 'path');
+        path.setAttribute('d', \`M \${x1} \${y1} C \${x1} \${y1 + cp}, \${x2} \${y2 - cp}, \${x2} \${y2}\`);
+        path.setAttribute('marker-end', 'url(#arrow-' + edge.type + ')');
+        g.appendChild(path);
+
+        // Edge label
+        if (edge.label) {
+          const mx = (x1 + x2) / 2;
+          const my = (y1 + y2) / 2;
+          const text = document.createElementNS(ns, 'text');
+          text.setAttribute('x', mx + 4);
+          text.setAttribute('y', my);
+          text.textContent = edge.condition ? edge.label + ' ?' : edge.label;
+          g.appendChild(text);
+        }
+
+        root.appendChild(g);
+      }
+
+      // Draw nodes
+      for (const node of graph.nodes) {
+        const pos = layout.positions[node.id];
+        if (!pos) continue;
+
+        const g = document.createElementNS(ns, 'g');
+        g.setAttribute('class', 'node node-' + node.type);
+        g.setAttribute('transform', \`translate(\${pos.x},\${pos.y})\`);
+        g.onclick = () => {
+          vscode.postMessage({ type: 'navigate', file: node.file, line: node.line });
+        };
+
+        if (node.type === 'end') {
+          const ellipse = document.createElementNS(ns, 'ellipse');
+          ellipse.setAttribute('cx', String(NODE_W / 2));
+          ellipse.setAttribute('cy', String(NODE_H / 2));
+          ellipse.setAttribute('rx', String(NODE_W / 2));
+          ellipse.setAttribute('ry', String(NODE_H / 2));
+          g.appendChild(ellipse);
+        } else {
+          const rect = document.createElementNS(ns, 'rect');
+          rect.setAttribute('width', String(NODE_W));
+          rect.setAttribute('height', String(NODE_H));
+          g.appendChild(rect);
+        }
+
+        // Node label
+        const text = document.createElementNS(ns, 'text');
+        text.setAttribute('x', String(NODE_W / 2));
+        text.setAttribute('y', String(NODE_H / 2 - 2));
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
+        const displayLabel = node.label.length > 16 ? node.label.substring(0, 15) + '…' : node.label;
+        text.textContent = displayLabel;
+        g.appendChild(text);
+
+        // File name (small, below label)
+        if (node.type === 'label') {
+          const fileText = document.createElementNS(ns, 'text');
+          fileText.setAttribute('class', 'file-label');
+          fileText.setAttribute('x', String(NODE_W / 2));
+          fileText.setAttribute('y', String(NODE_H / 2 + 12));
+          fileText.setAttribute('text-anchor', 'middle');
+          fileText.setAttribute('dominant-baseline', 'middle');
+          fileText.textContent = node.file.replace(/\\.ks$/, '');
+          g.appendChild(fileText);
+        }
+
+        root.appendChild(g);
+      }
+
+      svgEl.appendChild(root);
+    }
+
+    function fitAll() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const gw = layout.width + PADDING * 2;
+      const gh = layout.height + PADDING * 2;
+      scale = Math.min(vw / gw, vh / gh, 1.5);
+      tx = (vw - gw * scale) / 2 + PADDING * scale;
+      ty = (vh - gh * scale) / 2 + PADDING * scale;
+      render();
+    }
+
+    document.getElementById('btn-zoom-in').onclick = () => { scale *= 1.25; render(); };
+    document.getElementById('btn-zoom-out').onclick = () => { scale /= 1.25; render(); };
+    document.getElementById('btn-fit').onclick = fitAll;
+
+    // Pan with mouse drag
+    let dragging = false, lastX = 0, lastY = 0;
+    svgEl.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.node')) return; // don't pan when clicking nodes
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      svgEl.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      tx += e.clientX - lastX;
+      ty += e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      render();
+    });
+    window.addEventListener('mouseup', () => { dragging = false; svgEl.style.cursor = 'default'; });
+
+    // Zoom with scroll wheel
+    svgEl.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      const rect = svgEl.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      tx = mx - factor * (mx - tx);
+      ty = my - factor * (my - ty);
+      scale *= factor;
+      render();
+    }, { passive: false });
+
+    // Initial render
+    fitAll();
+  </script>
+</body>
+</html>`;
+  }
+
+  // ── Graph extraction ──
 
   private extractEdges(
     nodesAst: ScenarioNode[],
@@ -144,7 +512,7 @@ export class FlowGraphProvider implements vscode.WebviewViewProvider {
     graphNodes: FlowNode[],
     nodeIds: Set<string>,
   ): void {
-    if (node.name !== 'jump' && node.name !== 'call' && node.name !== 'button' && node.name !== 'glink') {
+    if (!LABEL_REF_TAGS.has(node.name)) {
       return;
     }
 
@@ -154,6 +522,9 @@ export class FlowGraphProvider implements vscode.WebviewViewProvider {
 
     const targetFile = storageAttr?.value ?? file;
     const targetLabel = targetAttr?.value?.replace(/^\*/, '') ?? null;
+
+    // Skip dynamic targets
+    if (targetLabel?.startsWith('&')) return;
 
     const fromId = currentLabel ? `${file}:*${currentLabel}` : `scene:${file}`;
     const toId = targetLabel ? `${targetFile}:*${targetLabel}` : `scene:${targetFile}`;
@@ -183,152 +554,151 @@ export class FlowGraphProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private getHtml(graph: FlowGraph): string {
-    const graphJson = JSON.stringify(graph);
+  // ── Layout algorithm ──
 
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TyranoDev Flow Graph</title>
-  <style>
-    body { margin: 0; padding: 0; background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); font-family: var(--vscode-font-family); overflow: hidden; }
-    #graph { width: 100vw; height: 100vh; }
-    .node { cursor: pointer; }
-    .node rect { fill: var(--vscode-badge-background); stroke: var(--vscode-badge-foreground); stroke-width: 1.5; rx: 6; }
-    .node.scene-start rect { fill: var(--vscode-statusBarItem-prominentBackground); }
-    .node.choice rect { fill: var(--vscode-inputValidation-warningBackground); }
-    .node text { fill: var(--vscode-badge-foreground); font-size: 12px; }
-    .edge line, .edge path { stroke: var(--vscode-editor-foreground); stroke-width: 1.5; fill: none; }
-    .edge.call path { stroke-dasharray: 5,5; }
-    .edge.choice path { stroke: var(--vscode-charts-yellow); }
-    .edge text { fill: var(--vscode-descriptionForeground); font-size: 10px; }
-    .toolbar { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; }
-    .toolbar button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 4px 8px; cursor: pointer; border-radius: 3px; font-size: 12px; }
-    .toolbar button:hover { background: var(--vscode-button-hoverBackground); }
-    #info { position: absolute; bottom: 8px; left: 8px; font-size: 11px; color: var(--vscode-descriptionForeground); }
-  </style>
-</head>
-<body>
-  <div id="graph">
-    <svg id="svg" width="100%" height="100%"></svg>
-  </div>
-  <div class="toolbar">
-    <button onclick="zoomIn()">+</button>
-    <button onclick="zoomOut()">-</button>
-    <button onclick="fitAll()">Fit</button>
-  </div>
-  <div id="info">Nodes: ${graph.nodes.length} | Edges: ${graph.edges.length}</div>
-  <script>
-    const vscode = acquireVsCodeApi();
-    const graph = ${graphJson};
+  /**
+   * Compute a hierarchical (top-to-bottom) layout for the DAG.
+   * Uses a simplified Sugiyama-style algorithm:
+   * 1. Assign layers via longest-path layering
+   * 2. Order nodes within layers to minimize crossings (barycenter heuristic)
+   * 3. Assign X/Y positions
+   */
+  private computeLayout(graph: FlowGraph): {
+    positions: Record<string, { x: number; y: number }>;
+    width: number;
+    height: number;
+  } {
+    const NODE_W = 140;
+    const NODE_H = 44;
+    const H_GAP = 40;
+    const V_GAP = 60;
 
-    // Simple force-directed layout
-    // Full implementation would use d3-force or dagre
-    const svg = document.getElementById('svg');
-    const ns = 'http://www.w3.org/2000/svg';
-    let scale = 1;
-    let tx = 0, ty = 0;
-
-    function render() {
-      svg.innerHTML = '';
-      const g = document.createElementNS(ns, 'g');
-      g.setAttribute('transform', 'translate(' + tx + ',' + ty + ') scale(' + scale + ')');
-
-      // Layout nodes in a grid for now (dagre layout in full implementation)
-      const nodePositions = new Map();
-      const cols = Math.ceil(Math.sqrt(graph.nodes.length));
-      graph.nodes.forEach((node, i) => {
-        const x = (i % cols) * 200 + 50;
-        const y = Math.floor(i / cols) * 100 + 50;
-        nodePositions.set(node.id, { x, y });
-
-        const group = document.createElementNS(ns, 'g');
-        group.setAttribute('class', 'node ' + node.type);
-        group.setAttribute('transform', 'translate(' + x + ',' + y + ')');
-        group.onclick = () => {
-          vscode.postMessage({ type: 'navigate', file: node.file, line: node.line });
-        };
-
-        const rect = document.createElementNS(ns, 'rect');
-        rect.setAttribute('x', '-60');
-        rect.setAttribute('y', '-18');
-        rect.setAttribute('width', '120');
-        rect.setAttribute('height', '36');
-        group.appendChild(rect);
-
-        const text = document.createElementNS(ns, 'text');
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('dy', '4');
-        text.textContent = node.label.length > 14 ? node.label.substring(0, 13) + '…' : node.label;
-        group.appendChild(text);
-
-        g.appendChild(group);
-      });
-
-      // Edges
-      graph.edges.forEach(edge => {
-        const from = nodePositions.get(edge.from);
-        const to = nodePositions.get(edge.to);
-        if (!from || !to) return;
-
-        const line = document.createElementNS(ns, 'line');
-        line.setAttribute('class', 'edge ' + edge.type);
-        line.setAttribute('x1', from.x);
-        line.setAttribute('y1', from.y + 18);
-        line.setAttribute('x2', to.x);
-        line.setAttribute('y2', to.y - 18);
-        line.setAttribute('stroke', edge.type === 'choice' ? '#e0a030' : '#888');
-        if (edge.type === 'call') line.setAttribute('stroke-dasharray', '5,5');
-        line.setAttribute('marker-end', 'url(#arrow)');
-        g.appendChild(line);
-      });
-
-      // Arrow marker
-      const defs = document.createElementNS(ns, 'defs');
-      const marker = document.createElementNS(ns, 'marker');
-      marker.setAttribute('id', 'arrow');
-      marker.setAttribute('viewBox', '0 0 10 10');
-      marker.setAttribute('refX', '10');
-      marker.setAttribute('refY', '5');
-      marker.setAttribute('markerWidth', '8');
-      marker.setAttribute('markerHeight', '8');
-      marker.setAttribute('orient', 'auto');
-      const arrowPath = document.createElementNS(ns, 'path');
-      arrowPath.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
-      arrowPath.setAttribute('fill', '#888');
-      marker.appendChild(arrowPath);
-      defs.appendChild(marker);
-      svg.appendChild(defs);
-
-      svg.appendChild(g);
+    if (graph.nodes.length === 0) {
+      return { positions: {}, width: 0, height: 0 };
     }
 
-    function zoomIn() { scale *= 1.2; render(); }
-    function zoomOut() { scale /= 1.2; render(); }
-    function fitAll() { scale = 1; tx = 0; ty = 0; render(); }
+    // Build adjacency
+    const children = new Map<string, string[]>();
+    const parents = new Map<string, string[]>();
+    for (const node of graph.nodes) {
+      children.set(node.id, []);
+      parents.set(node.id, []);
+    }
+    for (const edge of graph.edges) {
+      children.get(edge.from)?.push(edge.to);
+      parents.get(edge.to)?.push(edge.from);
+    }
 
-    render();
+    // Step 1: Layer assignment (longest path from roots)
+    const layers = new Map<string, number>();
+    const visited = new Set<string>();
 
-    // Handle pan with mouse drag
-    let dragging = false, lastX = 0, lastY = 0;
-    svg.onmousedown = (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; };
-    svg.onmousemove = (e) => {
-      if (!dragging) return;
-      tx += e.clientX - lastX;
-      ty += e.clientY - lastY;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      render();
+    const assignLayer = (id: string): number => {
+      if (layers.has(id)) return layers.get(id)!;
+      if (visited.has(id)) return 0; // cycle guard
+      visited.add(id);
+
+      const pars = parents.get(id) ?? [];
+      let maxParent = -1;
+      for (const p of pars) {
+        maxParent = Math.max(maxParent, assignLayer(p));
+      }
+      const layer = maxParent + 1;
+      layers.set(id, layer);
+      return layer;
     };
-    svg.onmouseup = () => { dragging = false; };
-    svg.onwheel = (e) => {
-      e.preventDefault();
-      if (e.deltaY < 0) zoomIn(); else zoomOut();
-    };
-  </script>
-</body>
-</html>`;
+
+    for (const node of graph.nodes) {
+      assignLayer(node.id);
+    }
+
+    // Group nodes by layer
+    const layerGroups = new Map<number, string[]>();
+    for (const [id, layer] of layers) {
+      if (!layerGroups.has(layer)) layerGroups.set(layer, []);
+      layerGroups.get(layer)!.push(id);
+    }
+
+    // Step 2: Order within layers (barycenter heuristic, 2 passes)
+    const order = new Map<string, number>();
+
+    // Initial order: by file name then label name for stability
+    for (const [, group] of layerGroups) {
+      group.sort();
+      group.forEach((id, i) => order.set(id, i));
+    }
+
+    // Barycenter passes
+    const maxLayer = Math.max(...layerGroups.keys());
+    for (let pass = 0; pass < 4; pass++) {
+      // Forward pass
+      for (let l = 1; l <= maxLayer; l++) {
+        const group = layerGroups.get(l);
+        if (!group) continue;
+        const barycenters = group.map(id => {
+          const pars = parents.get(id) ?? [];
+          if (pars.length === 0) return { id, bc: order.get(id) ?? 0 };
+          const sum = pars.reduce((s, p) => s + (order.get(p) ?? 0), 0);
+          return { id, bc: sum / pars.length };
+        });
+        barycenters.sort((a, b) => a.bc - b.bc);
+        barycenters.forEach((item, i) => {
+          const idx = layerGroups.get(l)!.indexOf(item.id);
+          layerGroups.get(l)![i] = item.id;
+          order.set(item.id, i);
+        });
+      }
+
+      // Backward pass
+      for (let l = maxLayer - 1; l >= 0; l--) {
+        const group = layerGroups.get(l);
+        if (!group) continue;
+        const barycenters = group.map(id => {
+          const kids = children.get(id) ?? [];
+          if (kids.length === 0) return { id, bc: order.get(id) ?? 0 };
+          const sum = kids.reduce((s, c) => s + (order.get(c) ?? 0), 0);
+          return { id, bc: sum / kids.length };
+        });
+        barycenters.sort((a, b) => a.bc - b.bc);
+        barycenters.forEach((item, i) => {
+          layerGroups.get(l)![i] = item.id;
+          order.set(item.id, i);
+        });
+      }
+    }
+
+    // Step 3: Assign coordinates
+    const positions: Record<string, { x: number; y: number }> = {};
+    let maxX = 0;
+
+    for (let l = 0; l <= maxLayer; l++) {
+      const group = layerGroups.get(l) ?? [];
+      const totalWidth = group.length * NODE_W + (group.length - 1) * H_GAP;
+      const startX = 0; // will center later
+
+      group.forEach((id, i) => {
+        const x = i * (NODE_W + H_GAP);
+        const y = l * (NODE_H + V_GAP);
+        positions[id] = { x, y };
+        maxX = Math.max(maxX, x + NODE_W);
+      });
+    }
+
+    // Center each layer
+    const globalMaxWidth = Math.max(...[...layerGroups.values()].map(
+      g => g.length * NODE_W + (g.length - 1) * H_GAP
+    ));
+    for (let l = 0; l <= maxLayer; l++) {
+      const group = layerGroups.get(l) ?? [];
+      const layerWidth = group.length * NODE_W + (group.length - 1) * H_GAP;
+      const offset = (globalMaxWidth - layerWidth) / 2;
+      for (const id of group) {
+        positions[id].x += offset;
+      }
+    }
+
+    const height = (maxLayer + 1) * (NODE_H + V_GAP) - V_GAP;
+
+    return { positions, width: globalMaxWidth, height };
   }
 }

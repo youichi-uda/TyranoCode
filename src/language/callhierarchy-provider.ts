@@ -11,10 +11,11 @@ import {
   TagNode,
   LabelNode,
   Range as AstRange,
+  LABEL_REF_TAGS,
 } from '../parser/types';
 
 /** Tag names that represent scenario flow transitions. */
-const FLOW_TAGS = new Set(['jump', 'call', 'link']);
+const FLOW_TAGS = LABEL_REF_TAGS;
 
 /**
  * Convert a 0-based AST Range to a VS Code Range.
@@ -175,8 +176,8 @@ export class TyranoCallHierarchyProvider implements vscode.CallHierarchyProvider
       return undefined;
     }
 
-    // Case 2: Cursor is on a [jump], [call], or [link] tag — resolve its target
-    const tagMatch = line.match(/\[\s*(jump|call|link)\b/);
+    // Case 2: Cursor is on a label-referencing tag — resolve its target
+    const tagMatch = line.match(/\[\s*(jump|call|link|button|glink|clickable|sleepgame|dialog)\b/);
     if (tagMatch) {
       const targetMatch = line.match(/target\s*=\s*["']?\*?(\w+)/);
       if (targetMatch) {

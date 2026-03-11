@@ -7,8 +7,11 @@ import * as vscode from 'vscode';
 import {
   ProjectIndex,
   ScenarioNode,
+  TagNode,
   Range as AstRange,
+  LABEL_REF_TAGS,
 } from '../parser/types';
+import { localize } from './i18n';
 
 /**
  * Convert a 0-based AST Range to a VS Code Range.
@@ -22,76 +25,93 @@ function toVscodeRange(r: AstRange): vscode.Range {
 
 /**
  * Counts references to a label across all scenarios in the project index.
- * A reference is a TagNode named 'jump' or 'call' whose target attribute
+ * A reference is a TagNode in LABEL_REF_TAGS whose target attribute
  * matches the given label name (with or without the leading '*').
  */
-function countLabelReferences(labelName: string, index: ProjectIndex): number {
-  let count = 0;
-  for (const [, scenario] of index.scenarios) {
-    count += countLabelRefsInNodes(scenario.nodes, labelName);
+function collectLabelReferenceLocations(
+  labelName: string,
+  index: ProjectIndex,
+  resolveUri: (file: string) => vscode.Uri,
+): vscode.Location[] {
+  const locations: vscode.Location[] = [];
+  for (const [file, scenario] of index.scenarios) {
+    const uri = resolveUri(file);
+    collectLabelRefsInNodes(scenario.nodes, labelName, uri, locations);
   }
-  return count;
+  return locations;
 }
 
-function countLabelRefsInNodes(nodes: ScenarioNode[], labelName: string): number {
-  let count = 0;
+function collectLabelRefsInNodes(
+  nodes: ScenarioNode[],
+  labelName: string,
+  uri: vscode.Uri,
+  locations: vscode.Location[],
+): void {
   for (const node of nodes) {
     if (node.type === 'tag') {
-      if (node.name === 'jump' || node.name === 'call') {
+      if (LABEL_REF_TAGS.has(node.name)) {
         for (const attr of node.attributes) {
           if (attr.name === 'target' && attr.value?.replace(/^\*/, '') === labelName) {
-            count++;
+            const range = attr.valueRange ?? attr.range;
+            locations.push(new vscode.Location(uri, toVscodeRange(range)));
           }
         }
       }
     } else if (node.type === 'if_block') {
-      count += countLabelRefsInNodes(node.thenBranch, labelName);
+      collectLabelRefsInNodes(node.thenBranch, labelName, uri, locations);
       for (const branch of node.elsifBranches) {
-        count += countLabelRefsInNodes(branch.body, labelName);
+        collectLabelRefsInNodes(branch.body, labelName, uri, locations);
       }
       if (node.elseBranch) {
-        count += countLabelRefsInNodes(node.elseBranch, labelName);
+        collectLabelRefsInNodes(node.elseBranch, labelName, uri, locations);
       }
     } else if (node.type === 'macro_def') {
-      count += countLabelRefsInNodes(node.body, labelName);
+      collectLabelRefsInNodes(node.body, labelName, uri, locations);
     }
   }
-  return count;
 }
 
 /**
  * Counts references to a macro across all scenarios in the project index.
  * A reference is any TagNode whose name matches the macro name.
  */
-function countMacroReferences(macroName: string, index: ProjectIndex): number {
+function collectMacroReferenceLocations(
+  macroName: string,
+  index: ProjectIndex,
+  resolveUri: (file: string) => vscode.Uri,
+): vscode.Location[] {
   const lowerName = macroName.toLowerCase();
-  let count = 0;
-  for (const [, scenario] of index.scenarios) {
-    count += countMacroRefsInNodes(scenario.nodes, lowerName);
+  const locations: vscode.Location[] = [];
+  for (const [file, scenario] of index.scenarios) {
+    const uri = resolveUri(file);
+    collectMacroRefsInNodes(scenario.nodes, lowerName, uri, locations);
   }
-  return count;
+  return locations;
 }
 
-function countMacroRefsInNodes(nodes: ScenarioNode[], lowerName: string): number {
-  let count = 0;
+function collectMacroRefsInNodes(
+  nodes: ScenarioNode[],
+  lowerName: string,
+  uri: vscode.Uri,
+  locations: vscode.Location[],
+): void {
   for (const node of nodes) {
     if (node.type === 'tag') {
       if (node.name === lowerName) {
-        count++;
+        locations.push(new vscode.Location(uri, toVscodeRange(node.nameRange)));
       }
     } else if (node.type === 'if_block') {
-      count += countMacroRefsInNodes(node.thenBranch, lowerName);
+      collectMacroRefsInNodes(node.thenBranch, lowerName, uri, locations);
       for (const branch of node.elsifBranches) {
-        count += countMacroRefsInNodes(branch.body, lowerName);
+        collectMacroRefsInNodes(branch.body, lowerName, uri, locations);
       }
       if (node.elseBranch) {
-        count += countMacroRefsInNodes(node.elseBranch, lowerName);
+        collectMacroRefsInNodes(node.elseBranch, lowerName, uri, locations);
       }
     } else if (node.type === 'macro_def') {
-      count += countMacroRefsInNodes(node.body, lowerName);
+      collectMacroRefsInNodes(node.body, lowerName, uri, locations);
     }
   }
-  return count;
 }
 
 /**
@@ -126,15 +146,18 @@ export class TyranoCodeLensProvider implements vscode.CodeLensProvider {
     for (const [name, entries] of index.globalLabels) {
       for (const entry of entries) {
         if (!this.isSameFile(entry.file, filePath)) continue;
-        const refCount = countLabelReferences(name, index);
+        const refLocations = collectLabelReferenceLocations(name, index, f => this.resolveUri(f));
         const range = toVscodeRange(entry.node.range);
         const nameRange = toVscodeRange(entry.node.nameRange);
-        const title = refCount === 1 ? '1 reference' : `${refCount} references`;
+        const refCount = refLocations.length;
+        const title = refCount === 1
+          ? localize('1 reference', '1 参照')
+          : localize(`${refCount} references`, `${refCount} 参照`);
 
         lenses.push(new vscode.CodeLens(range, {
           title,
-          command: 'editor.action.goToReferences',
-          arguments: [document.uri, nameRange.start],
+          command: 'editor.action.showReferences',
+          arguments: [document.uri, nameRange.start, refLocations],
         }));
       }
     }
@@ -142,15 +165,18 @@ export class TyranoCodeLensProvider implements vscode.CodeLensProvider {
     // Find macros defined in this file
     for (const [name, entry] of index.globalMacros) {
       if (!this.isSameFile(entry.file, filePath)) continue;
-      const refCount = countMacroReferences(name, index);
+      const refLocations = collectMacroReferenceLocations(name, index, f => this.resolveUri(f));
       const range = toVscodeRange(entry.node.range);
       const nameRange = toVscodeRange(entry.node.nameRange);
-      const title = refCount === 1 ? '1 reference' : `${refCount} references`;
+      const refCount = refLocations.length;
+      const title = refCount === 1
+        ? localize('1 reference', '1 参照')
+        : localize(`${refCount} references`, `${refCount} 参照`);
 
       lenses.push(new vscode.CodeLens(range, {
         title,
-        command: 'editor.action.goToReferences',
-        arguments: [document.uri, nameRange.start],
+        command: 'editor.action.showReferences',
+        arguments: [document.uri, nameRange.start, refLocations],
       }));
     }
 
@@ -168,5 +194,13 @@ export class TyranoCodeLensProvider implements vscode.CodeLensProvider {
       return resolved === fsPath;
     }
     return indexPath === fsPath;
+  }
+
+  private resolveUri(filePath: string): vscode.Uri {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (workspaceFolder) {
+      return vscode.Uri.joinPath(workspaceFolder.uri, filePath);
+    }
+    return vscode.Uri.file(filePath);
   }
 }

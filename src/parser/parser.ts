@@ -299,7 +299,8 @@ export class Parser {
   }
 
   private parseMacroBlock(nameToken: Token, attributes: TagAttribute[], openRange: Range): MacroDefNode {
-    const macroName = attributes.find(a => a.name === 'name')?.value ?? 'unknown';
+    const nameAttr = attributes.find(a => a.name === 'name');
+    const macroName = nameAttr?.value ?? 'unknown';
 
     const body = this.parseNodes(t => {
       if (t.type === 'TAG_OPEN') {
@@ -319,7 +320,7 @@ export class Parser {
     return {
       type: 'macro_def',
       name: macroName,
-      nameRange: this.tokenRange(nameToken),
+      nameRange: nameAttr?.valueRange ?? this.tokenRange(nameToken),
       body,
       range: {
         start: openRange.start,

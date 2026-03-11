@@ -34,7 +34,6 @@ import { TyranoCodeLensProvider } from './language/codelens-provider';
 import { TyranoCodeActionProvider } from './language/codeaction-provider';
 import { TyranoInlayHintsProvider } from './language/inlayhint-provider';
 import { TyranoSemanticTokensProvider, SEMANTIC_TOKENS_LEGEND } from './language/semantic-tokens-provider';
-import { registerSnippets } from './language/snippets';
 import { TyranoRenameProvider } from './language/rename-provider';
 import { TyranoCallHierarchyProvider } from './language/callhierarchy-provider';
 import { TyranoBracketHighlightProvider } from './language/bracket-provider';
@@ -43,6 +42,7 @@ import { registerPreview } from './language/preview-provider';
 import { ProjectIndexer } from './analyzer/project-indexer';
 import { LicenseManager } from './license/license-manager';
 import { FlowGraphProvider } from './flow-graph/flow-graph-provider';
+import { localize } from './language/i18n';
 import { registerExtendedTags } from './language/tag-database-ext';
 import { TestRunner } from './test-runner/test-runner';
 
@@ -50,6 +50,9 @@ const LANGUAGE_ID = 'tyranoscript';
 
 export function activate(context: vscode.ExtensionContext): void {
   console.log('TyranoCode activating...');
+
+  // Signal that a TyranoScript project is detected (enables views)
+  vscode.commands.executeCommand('setContext', 'tyranodev.projectDetected', true);
 
   // ── Register extended tag database ──
   registerExtendedTags();
@@ -193,8 +196,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  // Snippets
-  registerSnippets(context, LANGUAGE_ID);
+  // Snippets: provided via package.json "snippets" contribution
 
   // Rename (labels and macros)
   context.subscriptions.push(
@@ -289,7 +291,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // ── PRO: Flow Graph ──
-  const flowGraphProvider = new FlowGraphProvider(getIndex, context.extensionUri);
+  const flowGraphProvider = new FlowGraphProvider(getIndex);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('tyranodev.showFlowGraph', async () => {
@@ -302,13 +304,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const panel = vscode.window.createWebviewPanel(
         'tyranodev.flowGraph',
-        'TyranoCode: Scenario Flow Graph',
+        localize('TyranoCode: Scenario Flow Graph', 'TyranoCode: シナリオフローグラフ'),
         vscode.ViewColumn.Beside,
         { enableScripts: true },
       );
 
       const graph = flowGraphProvider.buildGraph();
-      panel.webview.html = (flowGraphProvider as any).getHtml(graph);
+      panel.webview.html = flowGraphProvider.renderHtml(graph);
 
       panel.webview.onDidReceiveMessage(msg => {
         if (msg.type === 'navigate') {

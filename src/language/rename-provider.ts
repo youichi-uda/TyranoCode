@@ -8,7 +8,9 @@ import { Scanner, Token } from '../parser/scanner';
 import {
   ProjectIndex,
   ScenarioNode,
+  LABEL_REF_TAGS,
 } from '../parser/types';
+import { localize } from './i18n';
 
 export class TyranoRenameProvider implements vscode.RenameProvider {
   constructor(private getIndex: () => ProjectIndex | undefined) {}
@@ -20,7 +22,7 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
   ): vscode.ProviderResult<{ range: vscode.Range; placeholder: string }> {
     const info = this.getSymbolAtPosition(document, position);
     if (!info) {
-      throw new Error('Cannot rename this element.');
+      throw new Error(localize('Cannot rename this element.', 'この要素の名前は変更できません。'));
     }
     return { range: info.range, placeholder: info.name };
   }
@@ -279,7 +281,7 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
       this.walkNodes(scenario.nodes, (node) => {
         if (node.type !== 'tag') return;
         // Check jump/call target attributes
-        if (node.name === 'jump' || node.name === 'call') {
+        if (LABEL_REF_TAGS.has(node.name)) {
           for (const attr of node.attributes) {
             if (attr.name === 'target' && attr.value != null) {
               const targetValue = attr.value.replace(/^\*/, '');

@@ -13,7 +13,9 @@ import {
   TagNode,
   IfBlockNode,
   MacroDefNode,
+  LABEL_REF_TAGS,
 } from '../parser/types';
+import { localize } from './i18n';
 
 export class TyranoDiagnosticsProvider {
   private diagnosticCollection: vscode.DiagnosticCollection;
@@ -91,7 +93,7 @@ export class TyranoDiagnosticsProvider {
                 diagnostics.push(
                   new vscode.Diagnostic(
                     toVscRange(next.range),
-                    `Unreachable code after [${node.name}]`,
+                    localize(`Unreachable code after [${node.name}]`, `[${node.name}] の後の到達不能コード`),
                     vscode.DiagnosticSeverity.Warning,
                   ),
                 );
@@ -131,7 +133,7 @@ export class TyranoDiagnosticsProvider {
         diagnostics.push(
           new vscode.Diagnostic(
             toVscRange(node.nameRange),
-            `Unknown tag or undefined macro: [${node.name}]`,
+            localize(`Unknown tag or undefined macro: [${node.name}]`, `不明なタグまたは未定義のマクロ: [${node.name}]`),
             vscode.DiagnosticSeverity.Warning,
           ),
         );
@@ -145,7 +147,7 @@ export class TyranoDiagnosticsProvider {
         diagnostics.push(
           new vscode.Diagnostic(
             toVscRange(node.nameRange),
-            `Missing required parameter "${param.name}" for [${node.name}]`,
+            localize(`Missing required parameter "${param.name}" for [${node.name}]`, `[${node.name}] の必須パラメータ "${param.name}" がありません`),
             vscode.DiagnosticSeverity.Error,
           ),
         );
@@ -158,7 +160,7 @@ export class TyranoDiagnosticsProvider {
         diagnostics.push(
           new vscode.Diagnostic(
             toVscRange(attr.nameRange),
-            `Unknown parameter "${attr.name}" for [${node.name}]`,
+            localize(`Unknown parameter "${attr.name}" for [${node.name}]`, `[${node.name}] の不明なパラメータ "${attr.name}"`),
             vscode.DiagnosticSeverity.Warning,
           ),
         );
@@ -166,7 +168,7 @@ export class TyranoDiagnosticsProvider {
     }
 
     // Check jump/call targets
-    if ((node.name === 'jump' || node.name === 'call') && config.undefinedLabel && index) {
+    if (LABEL_REF_TAGS.has(node.name) && config.undefinedLabel && index) {
       const targetAttr = node.attributes.find(a => a.name === 'target');
       const storageAttr = node.attributes.find(a => a.name === 'storage');
 
@@ -181,7 +183,7 @@ export class TyranoDiagnosticsProvider {
             diagnostics.push(
               new vscode.Diagnostic(
                 toVscRange(targetAttr.valueRange ?? targetAttr.range),
-                `Undefined label: *${labelName}`,
+                localize(`Undefined label: *${labelName}`, `未定義のラベル: *${labelName}`),
                 vscode.DiagnosticSeverity.Error,
               ),
             );
@@ -244,7 +246,7 @@ export class TyranoDiagnosticsProvider {
         diagnostics.push(
           new vscode.Diagnostic(
             toVscRange(node.nameRange),
-            `Duplicate macro definition: [${node.name}] (also defined in ${existing.file})`,
+            localize(`Duplicate macro definition: [${node.name}] (also defined in ${existing.file})`, `マクロ定義の重複: [${node.name}] (${existing.file} でも定義済み)`),
             vscode.DiagnosticSeverity.Warning,
           ),
         );

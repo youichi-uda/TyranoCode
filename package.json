@@ -53,6 +53,21 @@
         "path": "./syntaxes/tyranoscript.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "tyranoscript",
+        "path": "./snippets/tyranoscript.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[tyranoscript]": {
+        "editor.quickSuggestions": {
+          "other": "on",
+          "comments": "off",
+          "strings": "on"
+        }
+      }
+    },
     "configuration": {
       "title": "%config.title%",
       "properties": {
@@ -135,17 +150,27 @@
       },
       {
         "command": "tyranodev.showVariables",
-        "title": "TyranoCode: Show Variables"
+        "title": "%command.showVariables%"
       },
       {
         "command": "tyranodev.refreshVariables",
-        "title": "TyranoCode: Refresh Variables"
+        "title": "%command.refreshVariables%"
       },
       {
         "command": "tyranodev.previewScene",
-        "title": "TyranoCode: Preview Scene"
+        "title": "%command.previewScene%",
+        "icon": "$(open-preview)"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "tyranodev.previewScene",
+          "when": "resourceLangId == tyranoscript",
+          "group": "navigation"
+        }
+      ]
+    },
     "breakpoints": [
       {
         "language": "tyranoscript"
@@ -215,7 +240,7 @@
         {
           "id": "tyranodev.variablesView",
           "name": "TyranoScript Variables",
-          "when": "workspaceContains:**/*.ks"
+          "when": "tyranodev.projectDetected"
         }
       ]
     }

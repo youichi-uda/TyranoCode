@@ -137,3 +137,11 @@ export interface VariableInfo {
   range: Range;
   usage: 'read' | 'write';
 }
+
+/**
+ * Tags whose `target` attribute references a label (e.g., `*label_name`).
+ * Used by CodeLens, Rename, CallHierarchy, Diagnostics, etc. to find label references.
+ */
+export const LABEL_REF_TAGS = new Set([
+  'jump', 'call', 'link', 'button', 'glink', 'clickable', 'sleepgame', 'dialog',
+]);

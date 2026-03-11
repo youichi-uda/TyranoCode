@@ -5,6 +5,7 @@
  */
 
 import * as vscode from 'vscode';
+import { localize } from './i18n';
 
 export class TyranoCodeActionProvider implements vscode.CodeActionProvider {
   static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
@@ -22,7 +23,7 @@ export class TyranoCodeActionProvider implements vscode.CodeActionProvider {
 
       // Unknown tag → offer "Define as macro"
       const unknownTagMatch = message.match(
-        /^Unknown tag or undefined macro: \[(\w+)\]$/,
+        /^(?:Unknown tag or undefined macro|不明なタグまたは未定義のマクロ): \[(\w+)\]/,
       );
       if (unknownTagMatch) {
         const tagName = unknownTagMatch[1];
@@ -33,7 +34,7 @@ export class TyranoCodeActionProvider implements vscode.CodeActionProvider {
       }
 
       // Undefined label → offer "Create label"
-      const undefinedLabelMatch = message.match(/^Undefined label: \*(\w+)$/);
+      const undefinedLabelMatch = message.match(/^(?:Undefined label|未定義のラベル): \*(\w+)$/);
       if (undefinedLabelMatch) {
         const labelName = undefinedLabelMatch[1];
         const action = this.createInsertLabelAction(document, labelName, diagnostic);

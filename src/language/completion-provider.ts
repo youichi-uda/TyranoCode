@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { TAG_DATABASE, TagDef } from './tag-database';
 import { ProjectIndex } from '../parser/types';
+import { localize } from './i18n';
 
 export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
   /**
@@ -86,6 +87,7 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
       return this.completeLabels();
     }
 
+    // Snippets are provided via package.json native snippet contribution
     return [];
   }
 
@@ -98,7 +100,7 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
       const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
       item.detail = `[${name}] — ${tagDef.category}`;
       item.documentation = new vscode.MarkdownString(
-        `${tagDef.description}\n\n${tagDef.descriptionJa ?? ''}`
+        localize(tagDef.description, tagDef.descriptionJa)
       );
 
       // Build snippet with required params
@@ -106,6 +108,8 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
       if (requiredParams.length > 0) {
         const paramSnippets = requiredParams.map((p, i) => `${p.name}="\${${i + 1}:${p.default ?? ''}}"`);
         item.insertText = new vscode.SnippetString(`${name} ${paramSnippets.join(' ')}`);
+        // Re-trigger completion so the user sees value candidates (files, labels, etc.)
+        item.command = { command: 'editor.action.triggerSuggest', title: 'Trigger Suggest' };
       } else {
         item.insertText = name;
       }
@@ -145,9 +149,9 @@ export class TyranoCompletionProvider implements vscode.CompletionItemProvider {
       if (usedAttrs.has(param.name)) continue;
 
       const item = new vscode.CompletionItem(param.name, vscode.CompletionItemKind.Property);
-      item.detail = `${param.type}${param.required ? ' (required)' : ''}`;
+      item.detail = `${param.type}${param.required ? localize(' (required)', ' (必須)') : ''}`;
       item.documentation = new vscode.MarkdownString(
-        `${param.description}\n\n${param.descriptionJa ?? ''}${param.default ? `\n\nDefault: \`${param.default}\`` : ''}`
+        `${localize(param.description, param.descriptionJa)}${param.default ? `\n\n${localize('Default', '既定値')}: \`${param.default}\`` : ''}`
       );
       item.insertText = new vscode.SnippetString(`${param.name}="\${1:${param.default ?? ''}}"`);
       item.sortText = param.required ? `0_${param.name}` : `1_${param.name}`;

@@ -29,6 +29,10 @@
   "debugger.snippet.label": "TyranoScript: Launch",
   "debugger.snippet.description": "Launch TyranoScript game with debugger attached",
 
+  "command.showVariables": "TyranoCode: Show Variables",
+  "command.refreshVariables": "TyranoCode: Refresh Variables",
+  "command.previewScene": "TyranoCode: Preview Scene",
+
   "view.variableWatch": "TyranoScript Variables",
   "view.tagTracker": "Tag Execution Tracker"
 }

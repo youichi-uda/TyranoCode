@@ -113,11 +113,11 @@
 
 > **注意**: この機能はプロジェクト内に実際のリソースファイルが存在する場合にのみ動作します。test-game の data/bgimage/ 等にファイルがない場合は空の候補リストになります。
 
-- [ ] **確認手順**: `[jump storage="` まで入力する
-- [ ] **期待結果**: `data/scenario/` 内の `.ks` ファイル名（`first.ks`, `scene1.ks`, `scene2.ks` 等）が補完候補に表示される
-- [ ] **確認手順2**: `[bg storage="` まで入力 → `data/bgimage/` 内の画像ファイルが候補に出る（画像ファイルが存在すれば）
-- [ ] **確認手順3**: `[playbgm storage="` → `data/bgm/` 内の音声ファイルが候補に出る（音声ファイルが存在すれば）
-- [ ] **後片付け**: 入力したテスト行を削除
+- [☑] **確認手順**: `[jump storage="` まで入力する
+- [☑] **期待結果**: `data/scenario/` 内の `.ks` ファイル名（`first.ks`, `scene1.ks`, `scene2.ks` 等）が補完候補に表示される
+- [☑] **確認手順2**: `[bg storage="` まで入力 → `data/bgimage/` 内の画像ファイルが候補に出る（画像ファイルが存在すれば）
+- [☑] **確認手順3**: `[playbgm storage="` → `data/bgm/` 内の音声ファイルが候補に出る（音声ファイルが存在すれば）
+- [☑] **後片付け**: 入力したテスト行を削除
 
 ---
 
@@ -133,12 +133,12 @@
 
 ## 新機能 #8: Code Actions / Quick Fix
 
-- [ ] **確認手順**: `first.ks` の適当な位置に `[my_custom_tag]` と入力する
-- [ ] **期待結果**: 黄色い波線（警告）が表示される。Problems パネルに「Unknown tag」警告が出る
-- [ ] **操作**: `my_custom_tag` にカーソルを置き、左端に表示される **電球アイコン** 💡 をクリック（または `Ctrl+.`）
-- [ ] **期待結果**: 「Define as macro」というクイックフィックスが選択肢に表示される
-- [ ] **確認手順2**: `[jump target="*nonexistent_label"]` と入力 → 未定義ラベルの警告が出る → 電球から「Create label」が選べる
-- [ ] **後片付け**: テスト行を削除
+- [☑] **確認手順**: `first.ks` の適当な位置に `[my_custom_tag]` と入力する
+- [☑] **期待結果**: 黄色い波線（警告）が表示される。Problems パネルに「Unknown tag」警告が出る
+- [☑] **操作**: `my_custom_tag` にカーソルを置き、左端に表示される **電球アイコン** 💡 をクリック（または `Ctrl+.`）
+- [☑] **期待結果**: 「Define as macro」というクイックフィックスが選択肢に表示される
+- [☑] **確認手順2**: `[jump target="*nonexistent_label"]` と入力 → 未定義ラベルの警告が出る → 電球から「Create label」が選べる
+- [☑] **後片付け**: テスト行を削除
 
 ---
 
@@ -146,12 +146,12 @@
 
 > 設定: `editor.inlayHints.enabled` が `on` になっていること
 
-- [ ] **確認手順**: `first.ks` の 124行目 `@jump storage="scene1.ks" target=*start` を見る
-- [ ] **期待結果**: `scene1.ks` の後（閉じ引用符の右）に薄いグレーの文字で ` data/scenario/scene1.ks` とパス情報が表示される
-- [ ] **確認手順2**: `scene1.ks` の 17行目 `[chara_show name="sakura" ...]` を見る → `sakura` の後に ` (Sakura)` と表示名ヒントが出る
-- [ ] **確認手順3**: `first.ks` の 22行目 `[eval exp="f.player_name = 'Player'"]` → `exp=` の値の前に `game var: ` というスコープヒントが表示される
-- [ ] **確認手順4**: `first.ks` の 28行目 `[eval exp="sf.play_count = ..."]` → `system var: ` ヒント
-- [ ] **確認手順5**: `first.ks` の 31行目 `[eval exp="tf.current_mood = ..."]` → `temp var: ` ヒント
+- [☑] **確認手順**: `first.ks` の 124行目 `@jump storage="scene1.ks" target=*start` を見る
+- [☑] **期待結果**: `scene1.ks` の後（閉じ引用符の右）に薄いグレーの文字で ` data/scenario/scene1.ks` とパス情報が表示される
+- [☑] **確認手順2**: `scene1.ks` の 17行目 `[chara_show name="sakura" ...]` を見る → `sakura` の後に ` (Sakura)` と表示名ヒントが出る
+- [☑] **確認手順3**: `first.ks` の 22行目 `[eval exp="f.player_name = 'Player'"]` → `exp=` の値の前に `game var: ` というスコープヒントが表示される
+- [☑] **確認手順4**: `first.ks` の 28行目 `[eval exp="sf.play_count = ..."]` → `system var: ` ヒント
+- [☑] **確認手順5**: `first.ks` の 31行目 `[eval exp="tf.current_mood = ..."]` → `temp var: ` ヒント
 
 ---
 
@@ -159,79 +159,79 @@
 
 > 設定: `editor.semanticHighlighting.enabled` が `true` になっていること
 
-- [ ] **確認手順**: `first.ks` の 22行目 `[eval exp="f.player_name = 'Player'"]` を見る
-- [ ] **期待結果**: `f.player_name` が通常の文字列色とは異なる「変数」専用の色でハイライトされる
-- [ ] **確認手順2**: `scene1.ks` の 120行目 `[if exp="sf.play_count > 1"]` → `sf.play_count` が変数色でハイライト
-- [ ] **確認手順3**: `scene1.ks` の 120行目 `if` タグ名 → 通常のタグとは異なる「キーワード」色で表示される
-- [ ] **確認手順4**: `scene1.ks` の 128行目 `endif`、126行目 `else` も同様にキーワード色
-- [ ] **補足**: カラーテーマによっては差が見えにくい場合があります。Dark+, Monokai 等のテーマで確認するのがおすすめです
+- [☑] **確認手順**: `first.ks` の 22行目 `[eval exp="f.player_name = 'Player'"]` を見る
+- [☑] **期待結果**: `f.player_name` が通常の文字列色とは異なる「変数」専用の色でハイライトされる
+- [☑] **確認手順2**: `scene1.ks` の 120行目 `[if exp="sf.play_count > 1"]` → `sf.play_count` が変数色でハイライト
+- [☑] **確認手順3**: `scene1.ks` の 120行目 `if` タグ名 → 通常のタグとは異なる「キーワード」色で表示される
+- [☑] **確認手順4**: `scene1.ks` の 128行目 `endif`、126行目 `else` も同様にキーワード色
+- [☑] **補足**: カラーテーマによっては差が見えにくい場合があります。Dark+, Monokai 等のテーマで確認するのがおすすめです
 
 ---
 
 ## 新機能 #11: Code Lens
 
-- [ ] **確認手順**: `scene2.ks` を開く
-- [ ] **期待結果**: 各 `*label` 行（例: `*start`, `*choice_cafe` 等）の **上の行** に薄い文字で「N references」と表示される
-- [ ] **確認手順2**: `*after_choice`（155行目）の上に「3 references」と表示されていること（88行目、116行目、150行目で参照されている）
-- [ ] **操作**: 「3 references」をクリック → 参照元の一覧がポップアップ表示され、クリックでジャンプできる
-- [ ] **確認手順3**: `sub.ks` を開く → `*festival_comment` の上に参照数が表示される
+- [☑] **確認手順**: `scene2.ks` を開く
+- [☑] **期待結果**: 各 `*label` 行（例: `*start`, `*choice_cafe` 等）の **上の行** に薄い文字で「N references」と表示される
+- [☑] **確認手順2**: `*after_choice`（155行目）の上に「3 references」と表示されていること（88行目、116行目、150行目で参照されている）
+- [☑] **操作**: 「3 references」をクリック → 参照元の一覧がポップアップ表示され、クリックでジャンプできる
+- [☑] **確認手順3**: `sub.ks` を開く → `*festival_comment` の上に参照数が表示される
 
 ---
 
 ## 新機能 #12: Snippets
 
-- [ ] **確認手順**: `first.ks` の末尾で新しい行に移動し、行頭で `scene` と入力する（`[` は不要）
-- [ ] **期待結果**: 補完候補に「scene — TyranoScript: Full scene template...」が表示される
-- [ ] **操作**: Enter で選択 → ラベル、背景、キャラ、ダイアログのテンプレートが挿入される。Tab でプレースホルダー間を移動可能
-- [ ] **確認手順2**: `choice` と入力 → glink 選択肢テンプレート
-- [ ] **確認手順3**: `ifblock` と入力 → if/else/endif テンプレート
-- [ ] **確認手順4**: `macro` と入力 → macro/endmacro テンプレート
-- [ ] **確認手順5**: `chara` → キャラクター定義テンプレート、`bgm` → 音楽再生、`transition` → シーン遷移
-- [ ] **後片付け**: 挿入されたテスト行を Ctrl+Z で元に戻す
+- [☑] **確認手順**: `first.ks` の末尾で新しい行に移動し、行頭で `scene` と入力する（`[` は不要）
+- [☑] **期待結果**: 補完候補に「scene — TyranoScript: Full scene template...」が表示される
+- [☑] **操作**: Enter で選択 → ラベル、背景、キャラ、ダイアログのテンプレートが挿入される。Tab でプレースホルダー間を移動可能
+- [☑] **確認手順2**: `choice` と入力 → glink 選択肢テンプレート
+- [☑] **確認手順3**: `ifblock` と入力 → if/else/endif テンプレート
+- [☑] **確認手順4**: `macro` と入力 → macro/endmacro テンプレート
+- [☑] **確認手順5**: `chara` → キャラクター定義テンプレート、`bgm` → 音楽再生、`transition` → シーン遷移
+- [☑] **後片付け**: 挿入されたテスト行を Ctrl+Z で元に戻す
 
 ---
 
 ## 新機能 #13: Rename Symbol
 
-- [ ] **確認手順**: `scene2.ks` の 65行目 `*choice_cafe` にカーソルを置く
-- [ ] **操作**: `F2` を押す
-- [ ] **期待結果**: リネームダイアログが表示され、現在のラベル名 `choice_cafe` が入っている
-- [ ] **操作**: `choice_coffee` に変更して Enter
-- [ ] **期待結果**: `*choice_cafe` の定義と、57行目の `target="*choice_cafe"` の参照が同時に `choice_coffee` に変更される
-- [ ] **確認手順2**: `macro.ks` の 18行目 `[macro name="talk"]` の `talk` で F2 → マクロ名をリネーム → 全ファイルで `[talk]` の使用箇所も更新される
-- [ ] **後片付け**: `Ctrl+Z` を複数回押して変更を元に戻す（ファイルを保存しないこと）
+- [☑] **確認手順**: `scene2.ks` の 65行目 `*choice_cafe` にカーソルを置く
+- [☑] **操作**: `F2` を押す
+- [☑] **期待結果**: リネームダイアログが表示され、現在のラベル名 `choice_cafe` が入っている
+- [☑] **操作**: `choice_coffee` に変更して Enter
+- [☑] **期待結果**: `*choice_cafe` の定義と、57行目の `target="*choice_cafe"` の参照が同時に `choice_coffee` に変更される
+- [☑] **確認手順2**: `macro.ks` の 18行目 `[macro name="talk"]` の `talk` で F2 → マクロ名を `dialogue` に変更 → `scene1.ks` と `scene2.ks` の `[talk ...]` 使用箇所も同時に更新される
+- [☑] **後片付け**: `Ctrl+Z` を複数回押して変更を元に戻す（ファイルを保存しないこと）
 
 ---
 
 ## 新機能 #14: Call Hierarchy
 
-- [ ] **確認手順**: `sub.ks` の 11行目 `*festival_comment` にカーソルを置く
-- [ ] **操作**: 右クリック → コンテキストメニューから **「Show Call Hierarchy」** を選択
-- [ ] **期待結果**: 下部のパネルに Call Hierarchy ビューが表示される
-- [ ] **確認手順2**: **Incoming Calls**（左矢印アイコン）に切り替え → `scene2.ks` から `[call storage="sub.ks" target="*festival_comment"]` で呼び出されていることが表示される
-- [ ] **確認手順3**: `scene1.ks` の `*start` で同様に操作 → `first.ks` の `[jump storage="scene1.ks" target=*start]` からの着信が表示される
+- [☑] **確認手順**: `sub.ks` の 11行目 `*festival_comment` にカーソルを置く
+- [☑] **操作**: 右クリック → コンテキストメニューから **「Show Call Hierarchy」** を選択
+- [☑] **期待結果**: 下部のパネルに Call Hierarchy ビューが表示される
+- [☑] **確認手順2**: **Incoming Calls**（左矢印アイコン）に切り替え → `scene2.ks` から `[call storage="sub.ks" target="*festival_comment"]` で呼び出されていることが表示される
+- [☑] **確認手順3**: `scene1.ks` の `*start` で同様に操作 → `first.ks` の `[jump storage="scene1.ks" target=*start]` からの着信が表示される
 
 ---
 
 ## 新機能 #15: Bracket Highlight
 
-- [ ] **確認手順**: `scene1.ks` の 120行目 `[if exp="sf.play_count > 1"]` の `if` にカーソルを置く
-- [ ] **期待結果**: 対応する `[endif]`（128行目）がハイライト（背景色変更）される
-- [ ] **確認手順2**: 128行目の `[endif]` にカーソルを置く → 120行目の `[if]` がハイライトされる
-- [ ] **確認手順3**: 123行目の `[elsif]` にカーソルを置く → 対応する `[if]` と `[endif]` がハイライトされる
-- [ ] **確認手順4**: `macro.ks` の 18行目 `[macro name="talk"]` にカーソル → 26行目の `[endmacro]` がハイライトされる
+- [☑] **確認手順**: `scene1.ks` の 120行目 `[if exp="sf.play_count > 1"]` の `if` にカーソルを置く
+- [☑] **期待結果**: 対応する `[if]`・`[elsif]`・`[else]`・`[endif]` がすべてハイライト（背景色変更）される
+- [☑] **確認手順2**: 128行目の `[endif]` にカーソルを置く → 同じブロックの `[if]`・`[elsif]` 等がすべてハイライトされる
+- [☑] **確認手順3**: 123行目の `[elsif]` にカーソルを置く → 同様にブロック全体がハイライトされる
+- [☑] **確認手順4**: `macro.ks` の 18行目 `[macro name="talk"]` にカーソル → 26行目の `[endmacro]` がハイライトされる
 
 ---
 
 ## 新機能 #16: Variable Tracker
 
-- [ ] **確認手順**: 左サイドバーの **Explorer** アイコンをクリック
-- [ ] **期待結果**: Explorer ビューの下部に **「TyranoScript Variables」** というセクションが表示される
-- [ ] **確認手順2**: セクションを展開 → `f. (Game Variables)`, `sf. (System Variables)`, `tf. (Temporary Variables)` のスコープ別カテゴリが表示される
-- [ ] **確認手順3**: `f. (Game Variables)` を展開 → `f.player_name`, `f.affection`, `f.route`, `f.scene_count` 等の変数名が一覧される
-- [ ] **確認手順4**: 各変数の横に「N write, M read」と使用回数が表示される
-- [ ] **確認手順5**: 変数名を展開 → 使用箇所（ファイル名:行番号）が一覧される
-- [ ] **確認手順6**: 使用箇所をクリック → エディタでその行にジャンプする
+- [☑] **確認手順**: 左サイドバーの **Explorer** アイコンをクリック
+- [☑] **期待結果**: Explorer ビューの下部に **「TyranoScript Variables」** というセクションが表示される
+- [☑] **確認手順2**: セクションを展開 → `f. (Game Variables)`, `sf. (System Variables)`, `tf. (Temporary Variables)` のスコープ別カテゴリが表示される
+- [☑] **確認手順3**: `f. (Game Variables)` を展開 → `f.player_name`, `f.affection`, `f.route`, `f.scene_count` 等の変数名が一覧される
+- [☑] **確認手順4**: 各変数の横に「N write, M read」と使用回数が表示される
+- [☑] **確認手順5**: 変数名を展開 → 使用箇所（ファイル名:行番号）が一覧される
+- [☑] **確認手順6**: 使用箇所をクリック → エディタでその行にジャンプする
 
 > **注意**: 変数一覧はプロジェクトのインデックスに基づきます。`.ks` ファイルを何か開いた状態でないと表示されない場合があります。`Ctrl+Shift+P` → `TyranoCode: Refresh Variables` で更新もできます。
 
@@ -239,16 +239,41 @@
 
 ## 新機能 #17: Scene Preview
 
-- [ ] **確認手順**: `scene1.ks` を開いた状態で `Ctrl+Shift+P` → `TyranoCode: Preview Scene` と入力して実行
-- [ ] **期待結果**: エディタの横に WebView パネルが開く
-- [ ] **確認箇所**: パネル内にモックアップが表示される:
+- [☑] **確認手順**: `scene1.ks` を開いた状態で `Ctrl+Shift+P` → `TyranoCode: Preview Scene` と入力して実行
+- [☑] **期待結果**: エディタの横に WebView パネルが開く
+- [☑] **確認箇所**: パネル内にモックアップが表示される:
   - 背景: `classroom.jpg` の名前が表示される（実際の画像がなくてもプレースホルダーが出る）
   - キャラクター: `sakura`, `takeshi` の配置位置が表示される
   - ダイアログ: セリフテキストが表示される
   - ラベル: `*start`, `*middle`, `*end` がセクション区切りとして表示される
-- [ ] **確認手順2**: `scene1.ks` を編集（例: セリフを変更）→ Preview パネルがリアルタイムで更新される
-- [ ] **確認手順3**: `scene2.ks` に切り替え → Preview の内容もそのファイルに更新される（アクティブエディタ連動）
-- [ ] **後片付け**: 編集した内容を Ctrl+Z で戻す
+- [☑] **確認手順2**: `scene1.ks` を編集（例: セリフを変更）→ Preview パネルがリアルタイムで更新される
+- [☑] **確認手順3**: `scene2.ks` に切り替え → Preview の内容もそのファイルに更新される（アクティブエディタ連動）
+- [☑] **後片付け**: 編集した内容を Ctrl+Z で戻す
+
+---
+
+## 新機能 #18: ホバー画像プレビュー
+
+- [☑] **確認手順**: `scene1.ks` の `[bg storage="classroom.jpg"]` の `classroom.jpg` にマウスカーソルを乗せる
+- [☑] **期待結果**: ホバーポップアップにファイル名、パス、画像サムネイルが表示される
+- [☑] **確認手順2**: `[chara_new storage="chara/sakura/normal.png"]` の画像パスにホバー → サムネイル表示
+- [☑] **確認手順3**: 存在しない画像ファイル名にホバー → 通常の属性ドキュメントが表示される（エラーにならない）
+
+---
+
+## 新機能 #19: 多言語対応 (i18n)
+
+> VS Code のロケール切替が必要: `Ctrl+Shift+P` → `Configure Display Language` → `ja` / `en`
+
+- [ ] **確認手順**: VS Code の表示言語を日本語 (`ja`) に設定し、再起動する
+- [ ] **期待結果（日本語）**:
+  - タグホバーのパラメータ表ヘッダー: 「名前 / 型 / 必須 / 既定値 / 説明」
+  - 診断メッセージ: 「不明なタグまたは未定義のマクロ: [xxx]」
+  - CodeLens: 「N 参照」
+  - 変数トラッカーのスコープ: 「f. (ゲーム変数)」「sf. (システム変数)」等
+  - スニペットの説明文が日本語
+  - コマンドパレット: 「TyranoCode: シーンプレビュー」等
+- [ ] **確認手順2**: 表示言語を英語 (`en`) に戻す → 全て英語表示に戻ること
 
 ---
 

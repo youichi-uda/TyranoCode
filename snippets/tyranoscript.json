@@ -1,0 +1,65 @@
+{
+  "Scene template": {
+    "prefix": "scene",
+    "body": [
+      "*${1:scene_name}",
+      "[bg storage=\"${2:background.jpg}\" time=1000]",
+      "[chara_show name=\"${3:character}\" left=400]",
+      "[#${3:character}]",
+      "${4:Dialog text}[p]",
+      "[cm]"
+    ],
+    "description": "Full scene template with background, character, and dialog"
+  },
+  "Choice template": {
+    "prefix": "choice",
+    "body": [
+      "[glink text=\"${1:Choice 1}\" target=\"*${2:label1}\" color=\"0x4488ff\"]",
+      "[glink text=\"${3:Choice 2}\" target=\"*${4:label2}\" color=\"0x4488ff\"]",
+      "[s]"
+    ],
+    "description": "Choice/branching template with glink options"
+  },
+  "If block": {
+    "prefix": "ifblock",
+    "body": [
+      "[if exp=\"${1:condition}\"]",
+      "${2:then content}",
+      "[else]",
+      "${3:else content}",
+      "[endif]"
+    ],
+    "description": "If/else conditional block"
+  },
+  "Macro definition": {
+    "prefix": "macro",
+    "body": [
+      "[macro name=\"${1:macro_name}\"]",
+      "${2:body}",
+      "[endmacro]"
+    ],
+    "description": "Macro definition block"
+  },
+  "Character introduction": {
+    "prefix": "chara",
+    "body": [
+      "[chara_new name=\"${1:name}\" storage=\"${2:default.png}\" jname=\"${3:Display Name}\"]",
+      "[chara_show name=\"${1:name}\" left=${4:400} top=${5:80} time=600]"
+    ],
+    "description": "Character introduction (define and show)"
+  },
+  "Play BGM": {
+    "prefix": "bgm",
+    "body": "[playbgm storage=\"${1:music.ogg}\" loop=true time=${2:2000}]",
+    "description": "Play background music with fade-in"
+  },
+  "Scene transition": {
+    "prefix": "transition",
+    "body": [
+      "[mask time=${1:1000} effect=\"${2:fadeIn}\" color=0x000000]",
+      "[bg storage=\"${3:background.jpg}\"]",
+      "[mask_off time=${1:1000}]"
+    ],
+    "description": "Scene transition with mask effect"
+  }
+}

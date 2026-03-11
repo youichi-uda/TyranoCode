@@ -120,14 +120,10 @@ export class TyranoSemanticTokensProvider implements vscode.DocumentSemanticToke
 
         case 'ATTR_NAME':
           currentAttrName = token.value;
-          builder.push(
-            new vscode.Range(
-              new vscode.Position(token.line, token.column),
-              new vscode.Position(token.line, token.column + token.length),
-            ),
-            'parameter',
-            [],
-          );
+          // Don't emit semantic token for attribute names — TextMate grammar
+          // already colors them, and emitting 'parameter' here would override
+          // that with a color often identical to 'variable', making variables
+          // in expressions indistinguishable from attribute names.
           break;
 
         case 'ATTR_VALUE': {

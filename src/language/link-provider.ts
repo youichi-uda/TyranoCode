@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Parser } from '../parser/parser';
 import { ScenarioNode, TagNode } from '../parser/types';
+import { localize } from './i18n';
 
 /** Map tag names to their default asset subdirectory (or directories for fallback). */
 const TAG_FOLDERS: ReadonlyMap<string, readonly string[]> = new Map([
@@ -132,12 +133,12 @@ export class TyranoLinkProvider implements vscode.DocumentLinkProvider {
       if (candidateUris.length === 1) {
         // Single folder — set target immediately, no resolve needed.
         const link = new vscode.DocumentLink(range, candidateUris[0]);
-        link.tooltip = `Open ${filename}`;
+        link.tooltip = localize(`Open ${filename}`, `${filename} を開く`);
         links.push(link);
       } else {
         // Multiple candidates — defer resolution to resolveDocumentLink.
         const link: TyranoDocumentLink = new vscode.DocumentLink(range);
-        link.tooltip = `Open ${filename}`;
+        link.tooltip = localize(`Open ${filename}`, `${filename} を開く`);
         link.candidateUris = candidateUris;
         links.push(link);
       }

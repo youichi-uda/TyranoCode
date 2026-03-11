@@ -1,11 +1,31 @@
 /**
  * TyranoScript hover documentation provider.
- * Shows tag/attribute docs on hover.
+ * Shows tag/attribute docs on hover, including image previews for storage attributes.
  */
 
 import * as vscode from 'vscode';
 import { TAG_DATABASE } from './tag-database';
 import { ProjectIndex } from '../parser/types';
+import { localize } from './i18n';
+
+/** Maps tag names to the asset subdirectory for their storage attribute. */
+const STORAGE_DIRS: ReadonlyMap<string, string[]> = new Map([
+  ['bg',         ['data/bgimage']],
+  ['image',      ['data/image', 'data/fgimage']],
+  ['chara_new',  ['data/fgimage']],
+  ['chara_face', ['data/fgimage']],
+  ['chara_show', ['data/fgimage']],
+  ['chara_mod',  ['data/fgimage']],
+  ['playbgm',    ['data/bgm']],
+  ['fadeinbgm',  ['data/bgm']],
+  ['playse',     ['data/sound']],
+  ['fadeinse',   ['data/sound']],
+  ['movie',      ['data/video']],
+  ['bgmovie',    ['data/video']],
+]);
+
+/** Image extensions for which a thumbnail preview is meaningful. */
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp']);
 
 export class TyranoHoverProvider implements vscode.HoverProvider {
   constructor(private getIndex: () => ProjectIndex | undefined) {}
@@ -14,9 +34,9 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
     document: vscode.TextDocument,
     position: vscode.Position,
     _token: vscode.CancellationToken,
-  ): vscode.Hover | undefined {
+  ): vscode.Hover | vscode.ProviderResult<vscode.Hover> {
     const line = document.lineAt(position).text;
-    const wordRange = document.getWordRangeAtPosition(position, /[\w_]+/);
+    const wordRange = document.getWordRangeAtPosition(position, /[\w_.]+/);
     if (!wordRange) return undefined;
 
     const word = document.getText(wordRange);
@@ -34,9 +54,19 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
         return this.hoverTagName(word);
       }
 
-      // Is this an attribute name?
+      // Is this an attribute value for storage/file? → image preview
       const tagNameMatch = insideTag.match(/^(\w+)/);
       if (tagNameMatch) {
+        const attrValueMatch = textBefore.match(/(\w+)\s*=\s*["']?([^"'\s\]]*)$/);
+        if (attrValueMatch) {
+          const attrName = attrValueMatch[1];
+          if (attrName === 'storage' || attrName === 'file') {
+            const imageHover = this.hoverImagePreview(tagNameMatch[1], word);
+            if (imageHover) return imageHover;
+          }
+        }
+
+        // Is this an attribute name?
         return this.hoverAttribute(tagNameMatch[1], word);
       }
     }
@@ -71,7 +101,7 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
         if (macroDef) {
           return new vscode.Hover(
             new vscode.MarkdownString(
-              `**[${name}]** — user macro\n\nDefined in \`${macroDef.file}:${macroDef.node.range.start.line + 1}\``
+              `**[${name}]** — ${localize('user macro', 'ユーザーマクロ')}\n\n${localize('Defined in', '定義場所')}: \`${macroDef.file}:${macroDef.node.range.start.line + 1}\``
             )
           );
         }
@@ -81,27 +111,68 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
 
     const md = new vscode.MarkdownString();
     md.appendMarkdown(`**[${tagDef.name}]** — _${tagDef.category}_\n\n`);
-    md.appendMarkdown(`${tagDef.description}\n\n`);
-    if (tagDef.descriptionJa) {
-      md.appendMarkdown(`${tagDef.descriptionJa}\n\n`);
-    }
+    md.appendMarkdown(`${localize(tagDef.description, tagDef.descriptionJa)}\n\n`);
 
     if (tagDef.params.length > 0) {
-      md.appendMarkdown('### Parameters\n\n');
-      md.appendMarkdown('| Name | Type | Required | Default | Description |\n');
+      md.appendMarkdown(`### ${localize('Parameters', 'パラメータ')}\n\n`);
+      md.appendMarkdown(`| ${localize('Name', '名前')} | ${localize('Type', '型')} | ${localize('Required', '必須')} | ${localize('Default', '既定値')} | ${localize('Description', '説明')} |\n`);
       md.appendMarkdown('|------|------|----------|---------|-------------|\n');
       for (const p of tagDef.params) {
         md.appendMarkdown(
-          `| \`${p.name}\` | ${p.type} | ${p.required ? '**yes**' : 'no'} | ${p.default ?? '—'} | ${p.description} |\n`
+          `| \`${p.name}\` | ${p.type} | ${p.required ? '**yes**' : 'no'} | ${p.default ?? '—'} | ${localize(p.description, p.descriptionJa)} |\n`
         );
       }
     }
 
     if (tagDef.closingTag) {
-      md.appendMarkdown(`\n\nClosing tag: \`[${tagDef.closingTag}]\``);
+      md.appendMarkdown(`\n\n${localize('Closing tag', '閉じタグ')}: \`[${tagDef.closingTag}]\``);
     }
 
     return new vscode.Hover(md);
+  }
+
+  /**
+   * Show an image thumbnail preview when hovering over a storage/file attribute value.
+   */
+  private hoverImagePreview(
+    tagName: string,
+    fileName: string,
+  ): vscode.ProviderResult<vscode.Hover> {
+    const dirs = STORAGE_DIRS.get(tagName.toLowerCase());
+    if (!dirs) return undefined;
+
+    // Only preview image files
+    const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+    if (!IMAGE_EXTENSIONS.has(ext)) return undefined;
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return undefined;
+
+    // Try each candidate directory; return the first that exists
+    return this.findImageAndBuildHover(dirs, fileName, workspaceFolder.uri);
+  }
+
+  private async findImageAndBuildHover(
+    dirs: string[],
+    fileName: string,
+    workspaceUri: vscode.Uri,
+  ): Promise<vscode.Hover | undefined> {
+    for (const dir of dirs) {
+      const fileUri = vscode.Uri.joinPath(workspaceUri, dir, fileName);
+      try {
+        await vscode.workspace.fs.stat(fileUri);
+        const md = new vscode.MarkdownString();
+        md.supportHtml = true;
+        md.isTrusted = true;
+        md.appendMarkdown(`**${fileName}**\n\n`);
+        md.appendMarkdown(`\`${dir}/${fileName}\`\n\n`);
+        md.appendMarkdown(`![${fileName}](${fileUri.toString()}|width=320)`);
+        return new vscode.Hover(md);
+      } catch {
+        // File not found in this directory — try next.
+      }
+    }
+    return undefined;
   }
 
   private hoverAttribute(tagName: string, attrName: string): vscode.Hover | undefined {
@@ -113,10 +184,7 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
 
     const md = new vscode.MarkdownString();
     md.appendMarkdown(`**${param.name}** — \`${param.type}\`${param.required ? ' _(required)_' : ''}\n\n`);
-    md.appendMarkdown(`${param.description}\n\n`);
-    if (param.descriptionJa) {
-      md.appendMarkdown(`${param.descriptionJa}\n\n`);
-    }
+    md.appendMarkdown(`${localize(param.description, param.descriptionJa)}\n\n`);
     if (param.default) {
       md.appendMarkdown(`Default: \`${param.default}\`\n\n`);
     }
@@ -135,7 +203,7 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
     if (!locations || locations.length === 0) return undefined;
 
     const md = new vscode.MarkdownString();
-    md.appendMarkdown(`**\\*${name}** — label\n\n`);
+    md.appendMarkdown(`**\\*${name}** — ${localize('label', 'ラベル')}\n\n`);
     for (const loc of locations) {
       md.appendMarkdown(`- \`${loc.file}:${loc.node.range.start.line + 1}\`\n`);
     }
@@ -144,9 +212,9 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
 
   private hoverVariable(scope: 'f' | 'sf' | 'tf', name: string): vscode.Hover | undefined {
     const scopeNames: Record<string, string> = {
-      f: 'Game variable (saved with save data)',
-      sf: 'System variable (persistent across saves)',
-      tf: 'Temporary variable (lost on page change)',
+      f: localize('Game variable (saved with save data)', 'ゲーム変数（セーブデータと共に保存）'),
+      sf: localize('System variable (persistent across saves)', 'システム変数（セーブを跨いで永続化）'),
+      tf: localize('Temporary variable (lost on page change)', '一時変数（ページ遷移で消滅）'),
     };
 
     const index = this.getIndex();
@@ -161,7 +229,7 @@ export class TyranoHoverProvider implements vscode.HoverProvider {
       if (refs) {
         const writes = refs.filter(r => r.usage === 'write');
         const reads = refs.filter(r => r.usage === 'read');
-        md.appendMarkdown(`Writes: ${writes.length} | Reads: ${reads.length}\n`);
+        md.appendMarkdown(`${localize('Writes', '書込')}: ${writes.length} | ${localize('Reads', '読取')}: ${reads.length}\n`);
       }
     }
 
