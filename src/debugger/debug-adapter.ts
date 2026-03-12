@@ -302,26 +302,67 @@ export class TyranoDebugSession extends LoggingDebugSession {
     const relativePath = this.toGamePath(filePath);
     const clientBreakpoints = args.breakpoints ?? [];
 
-    const bpInfos: BreakpointInfo[] = clientBreakpoints.map(bp => ({
-      line: bp.line,
-      condition: bp.condition,
-      hitCondition: bp.hitCondition,
-      logMessage: bp.logMessage,
-    }));
-    this.pendingBreakpoints.set(relativePath, bpInfos);
+    // Read file to validate breakpoint lines
+    let fileLines: string[] = [];
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      fileLines = content.split(/\r?\n/);
+    } catch {
+      // If file can't be read, accept all breakpoints as-is
+    }
 
+    const validatedBps: DebugProtocol.Breakpoint[] = [];
+    const bpInfos: BreakpointInfo[] = [];
+
+    for (const bp of clientBreakpoints) {
+      let resolvedLine = bp.line;
+      let verified = false;
+
+      if (fileLines.length > 0) {
+        // Try requested line, then scan forward for nearest executable line
+        for (let l = bp.line; l <= fileLines.length; l++) {
+          if (this.isExecutableLine(fileLines[l - 1])) {
+            resolvedLine = l;
+            verified = true;
+            break;
+          }
+        }
+      } else {
+        verified = this.bridgeSocket !== null;
+      }
+
+      bpInfos.push({
+        line: resolvedLine,
+        condition: bp.condition,
+        hitCondition: bp.hitCondition,
+        logMessage: bp.logMessage,
+      });
+
+      validatedBps.push({
+        id: this.nextBreakpointId++,
+        verified,
+        line: resolvedLine,
+        source: args.source,
+      } as DebugProtocol.Breakpoint);
+    }
+
+    this.pendingBreakpoints.set(relativePath, bpInfos);
     this.syncBreakpoints();
 
-    response.body = {
-      breakpoints: clientBreakpoints.map(bp => ({
-        id: this.nextBreakpointId++,
-        verified: this.bridgeSocket !== null,
-        line: bp.line,
-        source: args.source,
-      } as DebugProtocol.Breakpoint)),
-    };
-
+    response.body = { breakpoints: validatedBps };
     this.sendResponse(response);
+  }
+
+  /** Check if a .ks line is executable (has a tag, not a comment/text/empty line) */
+  private isExecutableLine(line: string): boolean {
+    const trimmed = line.trim();
+    if (!trimmed) return false;              // empty
+    if (trimmed.startsWith(';')) return false; // comment
+    if (trimmed.startsWith('*')) return false; // label definition
+    if (trimmed.startsWith('#')) return false; // character name
+    if (trimmed.startsWith('[') || trimmed.startsWith('@')) return true; // tag
+    // Text lines (dialogue) are executed by the engine too
+    return true;
   }
 
   protected setExceptionBreakPointsRequest(
@@ -443,12 +484,33 @@ export class TyranoDebugSession extends LoggingDebugSession {
     const scopeNames: Record<number, string> = { 1: 'f', 2: 'sf', 3: 'tf' };
     const scope = scopeNames[args.variablesReference];
 
-    if (scope) {
-      this.sendToBridge('setVariable', {
-        scope,
-        name: args.name,
-        value: args.value,
-      });
+    if (!scope) {
+      response.body = { value: args.value };
+      this.sendResponse(response);
+      return;
+    }
+
+    // Normalize value for JSON.parse on bridge side:
+    // - Numbers/booleans/null/arrays/objects pass through as-is
+    // - Bare strings get wrapped in quotes
+    let jsonValue = args.value;
+    try {
+      JSON.parse(jsonValue);
+    } catch {
+      // Not valid JSON — treat as a string
+      jsonValue = JSON.stringify(jsonValue);
+    }
+
+    this.sendToBridge('setVariable', {
+      scope,
+      name: args.name,
+      value: jsonValue,
+    });
+
+    // Update local bridgeState so the variables panel reflects the change immediately
+    if (this.bridgeState) {
+      const scopeKey = scope as 'f' | 'sf' | 'tf';
+      this.bridgeState.variables[scopeKey][args.name] = args.value;
     }
 
     response.body = { value: args.value };

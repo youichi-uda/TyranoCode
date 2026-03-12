@@ -383,7 +383,10 @@
     var originalNextOrder = ftag.nextOrder.bind(ftag);
 
     ftag.nextOrder = function () {
-      var tag = ftag.array_tag[ftag.current_order_index];
+      // nextOrder() increments current_order_index THEN executes the tag.
+      // We check the NEXT tag (index + 1) which is the one about to execute.
+      var nextIndex = ftag.current_order_index + 1;
+      var tag = ftag.array_tag[nextIndex];
       if (!tag) {
         return originalNextOrder();
       }
