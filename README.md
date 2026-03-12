@@ -6,6 +6,10 @@ TyranoScript / TyranoBuilder でのゲーム開発を強力に支援する VS Co
 
 ## デモ
 
+[![無料機能デモ](https://img.youtube.com/vi/OXhvy__1v94/maxresdefault.jpg)](https://youtu.be/OXhvy__1v94)
+
+▶ 無料機能の動作デモ（クリックで再生）
+
 [![デバッガーデモ](https://img.youtube.com/vi/Vq3XXGVpGKw/maxresdefault.jpg)](https://youtu.be/Vq3XXGVpGKw)
 
 ▶ ブレークポイントデバッガーの動作デモ（クリックで再生）

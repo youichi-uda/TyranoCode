@@ -6,6 +6,10 @@ A professional VS Code extension for TyranoScript / TyranoBuilder game developme
 
 ## Demo
 
+[![Free Features Demo](https://img.youtube.com/vi/OXhvy__1v94/maxresdefault.jpg)](https://youtu.be/OXhvy__1v94)
+
+▶ Free features in action (click to play)
+
 [![Debugger Demo](https://img.youtube.com/vi/Vq3XXGVpGKw/maxresdefault.jpg)](https://youtu.be/Vq3XXGVpGKw)
 
 ▶ Breakpoint Debugger in action (click to play)
