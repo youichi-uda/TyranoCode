@@ -56,5 +56,5 @@ npm run compile
 
 ## License
 
-- Extension source code: MIT License
-- Pro features: Commercial license (license key required) — [Details](./LICENSE.md)
+This software is provided under a commercial license. Free features can be used without restriction.
+Pro features require a purchased license key. See [LICENSE.md](./LICENSE.md) for details.

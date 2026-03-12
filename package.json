@@ -3,11 +3,12 @@
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
   "version": "0.1.0",
-  "publisher": "tyranocode",
+  "publisher": "abyo-software",
   "repository": {
     "type": "git",
     "url": "https://github.com/youichi-uda/TyranoCode.git"
   },
+  "icon": "images/icon.png",
   "license": "SEE LICENSE IN LICENSE.md",
   "l10n": "./l10n",
   "engines": {
@@ -298,7 +299,6 @@
   "dependencies": {
     "@vscode/debugadapter": "^1.65.0",
     "dagre": "^0.8.5",
-    "mermaid": "^11.13.0",
     "ws": "^8.19.0"
   }
 }

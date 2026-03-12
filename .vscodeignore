@@ -1,0 +1,17 @@
+.vscode/**
+src/**
+test/**
+scripts/**
+node_modules/**
+!node_modules/dagre/**
+!node_modules/ws/**
+.gitignore
+.eslintrc*
+tsconfig.json
+vitest.config.*
+CHECKLIST.md
+PLAN.md
+docs/**
+**/*.map
+**/*.ts
+!**/*.d.ts

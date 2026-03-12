@@ -1,41 +1,54 @@
-MIT License
+# TyranoCode License
 
-Copyright (c) 2026 TyranoCode
+Copyright (c) 2025 abyo software
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## 利用条件 / Terms of Use
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+### 使用許諾 / Usage Rights
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+TyranoCode は、個人・商用を問わず、ゲーム開発の目的で**無料で使用**できます。
+無料機能にライセンスキーは不要です。
 
----
+TyranoCode is free to use for game development, whether personal or commercial.
+No license key is required for free features.
 
-## TyranoCode Pro — 商用ライセンス / Commercial License
+### Pro 機能 / Pro Features
 
-TyranoCode Pro の機能（デバッガー、フローグラフ、自動テスト、プロファイラー、リファクタリング）は
-**商用ライセンス**です。ご利用にはライセンスキーの購入が必要です。
+Pro 機能（ブレークポイントデバッガー、フローグラフ、自動テストランナー、パフォーマンスプロファイラー、リファクタリング）の使用には、有効なライセンスキーの購入が必要です。
 
-The Pro features of TyranoCode (Debugger, Flow Graph, Auto-Test, Profiler, Refactoring)
-are provided under a **commercial license**. A purchased license key is required.
+Pro features (breakpoint debugger, flow graph, auto-test runner, performance profiler, and refactoring tools) require a valid license key purchased from [https://tyranocode.abyo.net](https://tyranocode.abyo.net).
 
-- 購入先 / Purchase: https://tyranocode.gumroad.com/
 - ライセンスキーは購入者個人に付与されます。同一人物が複数のマシンで使用することは可能です。
-- The license key is granted to the individual purchaser. It may be used on multiple machines by the same person.
-- ライセンスキーの再配布・共有は禁止です。
-- Redistribution or sharing of license keys is prohibited.
-- 本ソフトウェアのソースコードは MIT ライセンスで公開されていますが、Pro 機能のライセンスキーなしでの
-  商用利用目的での Pro 機能の使用は許諾されません。
-- While the source code is published under the MIT License, use of Pro features without
-  a valid license key for commercial purposes is not permitted.
+- The license key is granted to the individual purchaser and may be used on multiple machines by the same person.
+
+### 禁止事項 / Restrictions
+
+1. **再配布の禁止** — 本ソフトウェアの全部または一部を、改変の有無にかかわらず、再配布・転売することを禁じます。
+2. **派生物の配布禁止** — 本ソフトウェアを基にした派生物を配布することを禁じます。
+3. **ライセンス回避の禁止** — ライセンス認証機能を改変・無効化・回避することを禁じます。
+
+1. **No Redistribution** — You may not redistribute, sublicense, or sell copies of this software, modified or unmodified.
+2. **No Derivative Works** — You may not create derivative works based on this software for distribution.
+3. **No License Circumvention** — You may not modify, bypass, or disable the license verification mechanism.
+
+### ソースコード / Source Code
+
+ソースコードは透明性の確保、バグ報告、およびコントリビューションの目的で公開されています。
+ソースコードへのアクセスは、上記に明示的に記載された権利以外を付与するものではありません。
+
+The source code is made available for transparency, bug reporting, and contribution purposes only.
+Access to the source code does not grant any rights beyond those explicitly stated above.
+
+### コントリビューション / Contributions
+
+プルリクエストまたはコントリビューションを提出することにより、abyo software に対し、
+その貢献を本ソフトウェアの一部として使用・改変・配布する永続的、世界的、ロイヤルティフリーのライセンスを付与するものとします。
+
+By submitting a pull request or contribution, you grant abyo software a perpetual, worldwide, royalty-free license to use, modify, and distribute your contribution as part of this software.
+
+### 免責事項 / Disclaimer
+
+本ソフトウェアは「現状有姿」で提供され、商品性、特定目的への適合性、および権利非侵害に関する保証を含め、
+明示的または暗示的を問わず、いかなる種類の保証も行いません。
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
