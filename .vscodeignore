@@ -3,8 +3,8 @@ src/**
 test/**
 scripts/**
 node_modules/**
-!node_modules/dagre/**
-!node_modules/ws/**
+esbuild.mjs
+secrets
 .gitignore
 .eslintrc*
 tsconfig.json

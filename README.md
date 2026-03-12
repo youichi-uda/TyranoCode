@@ -4,6 +4,12 @@
 
 TyranoScript / TyranoBuilder でのゲーム開発を強力に支援する VS Code 拡張機能です。
 
+## デモ
+
+[![デバッガーデモ](https://img.youtube.com/vi/Vq3XXGVpGKw/maxresdefault.jpg)](https://youtu.be/Vq3XXGVpGKw)
+
+▶ ブレークポイントデバッガーの動作デモ（クリックで再生）
+
 ## 無料機能
 
 | 機能 | 説明 |

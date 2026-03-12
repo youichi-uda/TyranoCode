@@ -171,20 +171,23 @@ export class TyranoDebugSession extends LoggingDebugSession {
     });
 
     // ── 2. Start HTTP server with auto-injected debug bridge ──
-    const bridgePath = path.join(path.dirname(__dirname), 'debugger', 'debug-bridge.js');
+    // Search candidate paths: works for both tsc (out/debugger/) and esbuild (out/) builds
+    const candidates = [
+      path.join(__dirname, 'debugger', 'debug-bridge.js'),       // esbuild: __dirname=out/
+      path.join(path.dirname(__dirname), 'debugger', 'debug-bridge.js'), // tsc: __dirname=out/debugger/
+      path.join(__dirname, 'debug-bridge.js'),                   // tsc fallback
+    ];
     let bridgeScript = '';
-    try {
-      bridgeScript = fs.readFileSync(bridgePath, 'utf-8');
-    } catch {
-      // Try alternative path (when running from out/)
-      const altPath = path.join(__dirname, 'debug-bridge.js');
+    for (const p of candidates) {
       try {
-        bridgeScript = fs.readFileSync(altPath, 'utf-8');
-      } catch {
-        this.sendEvent(new OutputEvent(
-          `Warning: debug-bridge.js not found at ${bridgePath} or ${altPath}\n`, 'stderr',
-        ));
-      }
+        bridgeScript = fs.readFileSync(p, 'utf-8');
+        break;
+      } catch { /* try next */ }
+    }
+    if (!bridgeScript) {
+      this.sendEvent(new OutputEvent(
+        `Warning: debug-bridge.js not found at ${candidates.join(' or ')}\n`, 'stderr',
+      ));
     }
 
     const mimeTypes: Record<string, string> = {

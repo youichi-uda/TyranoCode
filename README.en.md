@@ -4,6 +4,12 @@
 
 A professional VS Code extension for TyranoScript / TyranoBuilder game development.
 
+## Demo
+
+[![Debugger Demo](https://img.youtube.com/vi/Vq3XXGVpGKw/maxresdefault.jpg)](https://youtu.be/Vq3XXGVpGKw)
+
+▶ Breakpoint Debugger in action (click to play)
+
 ## Free Features
 
 | Feature | Description |
