@@ -19,6 +19,7 @@
   var stepMode = null;    // null | 'next' | 'stepIn' | 'stepOut'
   var stepDepth = 0;      // call stack depth at time of step command
   var pauseResolveFn = null;
+  var originalNextOrder = null; // captured in hookExecution, used by command handlers
   var exceptionBreakOnIscript = true;
   var closing = false;       // set when closeTab received — suppress reconnect
 
@@ -162,19 +163,19 @@
       case 'next':
         stepMode = 'next';
         stepDepth = getCallStackDepth();
-        resumeExecution();
+        forceResume();
         break;
 
       case 'stepIn':
         stepMode = 'stepIn';
         stepDepth = getCallStackDepth();
-        resumeExecution();
+        forceResume();
         break;
 
       case 'stepOut':
         stepMode = 'stepOut';
         stepDepth = getCallStackDepth();
-        resumeExecution();
+        forceResume();
         break;
 
       case 'evaluate':
@@ -380,9 +381,14 @@
 
   function hookExecution() {
     var ftag = TYRANO.kag.ftag;
-    var originalNextOrder = ftag.nextOrder.bind(ftag);
+    originalNextOrder = ftag.nextOrder.bind(ftag);
 
     ftag.nextOrder = function () {
+      // If paused, block all execution — only debugger commands can resume
+      if (paused) {
+        return false;
+      }
+
       // nextOrder() increments current_order_index THEN executes the tag.
       // We check the NEXT tag (index + 1) which is the one about to execute.
       var nextIndex = ftag.current_order_index + 1;
@@ -474,10 +480,8 @@
         };
 
         if (paused) {
-          // Already paused but game advanced via click — sync debugger position
-          send('positionUpdate', stateData);
-          stepMode = 'stepIn'; // keep pausing on subsequent clicks
-          return originalNextOrder();
+          // Already paused — block game from advancing on click
+          return false;
         } else {
           paused = true;
           stateData.reason = reason;
@@ -554,6 +558,16 @@
       var fn = pauseResolveFn;
       pauseResolveFn = null;
       fn();
+    }
+  }
+
+  /** Resume for step commands — if no pauseResolveFn (manual Pause), force advance */
+  function forceResume() {
+    if (pauseResolveFn) {
+      resumeExecution();
+    } else if (originalNextOrder) {
+      paused = false;
+      originalNextOrder();
     }
   }
 
