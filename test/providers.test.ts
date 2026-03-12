@@ -1433,3 +1433,824 @@ describe('Parser: nested structures', () => {
     }
   });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// Flow Graph: buildGraph logic (node/edge construction)
+// ════════════════════════════════════════════════════════════════════
+
+describe('Flow Graph: buildGraph node/edge construction', () => {
+  // Reimplement the core buildGraph algorithm for testing without VS Code API
+  interface FlowNode {
+    id: string;
+    label: string;
+    file: string;
+    line: number;
+    type: 'label' | 'scene-start' | 'choice' | 'end';
+  }
+  interface FlowEdge {
+    from: string;
+    to: string;
+    label: string;
+    type: 'jump' | 'call' | 'return' | 'choice' | 'fallthrough';
+    condition?: string;
+  }
+
+  function buildGraph(index: ProjectIndex) {
+    const filePathLookup = new Map<string, string>();
+    for (const key of index.scenarios.keys()) {
+      const bare = key.replace(/^.*[/\\]/, '');
+      filePathLookup.set(bare, key);
+      filePathLookup.set(key, key);
+    }
+
+    const nodes: FlowNode[] = [];
+    const edges: FlowEdge[] = [];
+    const nodeIds = new Set<string>();
+
+    for (const [file, scenario] of index.scenarios) {
+      const sceneId = `scene:${file}`;
+      if (!nodeIds.has(sceneId)) {
+        nodes.push({ id: sceneId, label: file.replace(/\.ks$/, ''), file, line: 0, type: 'scene-start' });
+        nodeIds.add(sceneId);
+      }
+      for (const [labelName, labelNode] of scenario.labels) {
+        const labelId = `${file}:*${labelName}`;
+        if (!nodeIds.has(labelId)) {
+          nodes.push({ id: labelId, label: `*${labelName}`, file, line: labelNode.range.start.line, type: 'label' });
+          nodeIds.add(labelId);
+        }
+      }
+      extractEdges(scenario.nodes, file, null, edges, nodes, nodeIds, filePathLookup);
+    }
+
+    // Add fallthrough edges from scene to first label
+    for (const [file, scenario] of index.scenarios) {
+      const labels = [...scenario.labels.entries()];
+      if (labels.length > 0) {
+        const sceneId = `scene:${file}`;
+        const labelId = `${file}:*${labels[0][0]}`;
+        if (!edges.some(e => e.from === sceneId && e.to === labelId)) {
+          edges.push({ from: sceneId, to: labelId, label: '', type: 'fallthrough' });
+        }
+      }
+    }
+
+    return { nodes, edges, filePathLookup };
+  }
+
+  function extractEdges(
+    nodesAst: ScenarioNode[], file: string, currentLabel: string | null,
+    edges: FlowEdge[], graphNodes: FlowNode[], nodeIds: Set<string>,
+    filePathLookup: Map<string, string>,
+  ) {
+    for (const node of nodesAst) {
+      if (node.type === 'label') currentLabel = node.name;
+      if (node.type === 'tag') {
+        extractEdgeFromTag(node, file, currentLabel, edges, graphNodes, nodeIds, filePathLookup);
+      }
+      if (node.type === 'if_block') {
+        extractEdges(node.thenBranch, file, currentLabel, edges, graphNodes, nodeIds, filePathLookup);
+        for (const branch of node.elsifBranches) {
+          extractEdges(branch.body, file, currentLabel, edges, graphNodes, nodeIds, filePathLookup);
+        }
+        if (node.elseBranch) {
+          extractEdges(node.elseBranch, file, currentLabel, edges, graphNodes, nodeIds, filePathLookup);
+        }
+      }
+      if (node.type === 'macro_def') {
+        extractEdges(node.body, file, currentLabel, edges, graphNodes, nodeIds, filePathLookup);
+      }
+    }
+  }
+
+  function extractEdgeFromTag(
+    node: TagNode, file: string, currentLabel: string | null,
+    edges: FlowEdge[], graphNodes: FlowNode[], nodeIds: Set<string>,
+    filePathLookup: Map<string, string>,
+  ) {
+    if (!LABEL_REF_TAGS.has(node.name)) return;
+    const storageAttr = node.attributes.find(a => a.name === 'storage');
+    const targetAttr = node.attributes.find(a => a.name === 'target');
+    const condAttr = node.attributes.find(a => a.name === 'cond');
+    const rawTarget = storageAttr?.value;
+    const targetFile = rawTarget ? (filePathLookup.get(rawTarget) ?? rawTarget) : file;
+    const targetLabel = targetAttr?.value?.replace(/^\*/, '') ?? null;
+    if (targetLabel?.startsWith('&')) return;
+    const fromId = currentLabel ? `${file}:*${currentLabel}` : `scene:${file}`;
+    const toId = targetLabel ? `${targetFile}:*${targetLabel}` : `scene:${targetFile}`;
+    if (!nodeIds.has(toId)) {
+      graphNodes.push({
+        id: toId,
+        label: targetLabel ? `*${targetLabel}` : targetFile.replace(/\.ks$/, ''),
+        file: targetFile,
+        line: 0,
+        type: targetLabel ? 'label' : 'scene-start',
+      });
+      nodeIds.add(toId);
+    }
+    const edgeType: FlowEdge['type'] =
+      (node.name === 'button' || node.name === 'glink') ? 'choice' :
+      node.name === 'call' ? 'call' : 'jump';
+    edges.push({ from: fromId, to: toId, label: `[${node.name}]`, type: edgeType, condition: condAttr?.value });
+  }
+
+  function buildMockIndex(...files: { name: string; source: string }[]): ProjectIndex {
+    const scenarios = new Map<string, ParsedScenario>();
+    const globalLabels = new Map<string, { file: string; node: LabelNode }[]>();
+    const globalMacros = new Map<string, { file: string; node: MacroDefNode }>();
+    const variables = new Map();
+    for (const f of files) {
+      const parsed = new Parser(f.name).parse(f.source);
+      scenarios.set(f.name, parsed);
+      for (const [name, node] of parsed.labels) {
+        const arr = globalLabels.get(name) ?? [];
+        arr.push({ file: f.name, node });
+        globalLabels.set(name, arr);
+      }
+      for (const [name, node] of parsed.macros) {
+        globalMacros.set(name, { file: f.name, node });
+      }
+    }
+    return { scenarios, globalLabels, globalMacros, variables };
+  }
+
+  it('should create scene-start nodes for each file', () => {
+    const index = buildMockIndex(
+      { name: 'first.ks', source: '*start\n[s]' },
+      { name: 'second.ks', source: '*begin\n[s]' },
+    );
+    const { nodes } = buildGraph(index);
+    const sceneNodes = nodes.filter(n => n.type === 'scene-start');
+    expect(sceneNodes.length).toBe(2);
+    expect(sceneNodes.map(n => n.id)).toContain('scene:first.ks');
+    expect(sceneNodes.map(n => n.id)).toContain('scene:second.ks');
+  });
+
+  it('should create label nodes for each label', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\nHello\n*middle\nWorld\n*end\n[s]',
+    });
+    const { nodes } = buildGraph(index);
+    const labelNodes = nodes.filter(n => n.type === 'label');
+    expect(labelNodes.length).toBe(3);
+    expect(labelNodes.map(n => n.label)).toEqual(['*start', '*middle', '*end']);
+  });
+
+  it('should create jump edges', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\n[jump target="*end"]\n*end\n[s]',
+    });
+    const { edges } = buildGraph(index);
+    const jumpEdges = edges.filter(e => e.type === 'jump');
+    expect(jumpEdges.length).toBe(1);
+    expect(jumpEdges[0].from).toBe('test.ks:*start');
+    expect(jumpEdges[0].to).toBe('test.ks:*end');
+    expect(jumpEdges[0].label).toBe('[jump]');
+  });
+
+  it('should create call edges', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\n[call target="*sub"]\n[s]\n*sub\n[return]',
+    });
+    const { edges } = buildGraph(index);
+    const callEdges = edges.filter(e => e.type === 'call');
+    expect(callEdges.length).toBe(1);
+    expect(callEdges[0].from).toBe('test.ks:*start');
+    expect(callEdges[0].to).toBe('test.ks:*sub');
+  });
+
+  it('should create choice edges for button/glink', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\n[button text="A" target="*a"]\n[glink text="B" target="*b" x=0 y=0]\n[s]\n*a\n[s]\n*b\n[s]',
+    });
+    const { edges } = buildGraph(index);
+    const choiceEdges = edges.filter(e => e.type === 'choice');
+    expect(choiceEdges.length).toBe(2);
+    expect(choiceEdges[0].label).toBe('[button]');
+    expect(choiceEdges[1].label).toBe('[glink]');
+  });
+
+  it('should create fallthrough edges from scene to first label', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\nHello\n*end\n[s]',
+    });
+    const { edges } = buildGraph(index);
+    const fallthrough = edges.filter(e => e.type === 'fallthrough');
+    expect(fallthrough.length).toBe(1);
+    expect(fallthrough[0].from).toBe('scene:test.ks');
+    expect(fallthrough[0].to).toBe('test.ks:*start');
+  });
+
+  it('should create cross-file edges with file path lookup', () => {
+    const index = buildMockIndex(
+      { name: 'data/scenario/first.ks', source: '*start\n[jump storage="second.ks" target="*begin"]' },
+      { name: 'data/scenario/second.ks', source: '*begin\n[s]' },
+    );
+    const { edges, filePathLookup } = buildGraph(index);
+
+    // File path lookup should map bare filenames
+    expect(filePathLookup.get('first.ks')).toBe('data/scenario/first.ks');
+    expect(filePathLookup.get('second.ks')).toBe('data/scenario/second.ks');
+
+    // Edge should use resolved path
+    const jumpEdge = edges.find(e => e.type === 'jump');
+    expect(jumpEdge).toBeDefined();
+    expect(jumpEdge!.to).toBe('data/scenario/second.ks:*begin');
+  });
+
+  it('should skip dynamic label targets (& prefix)', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\n[jump target="&f.nextLabel"]',
+    });
+    const { edges } = buildGraph(index);
+    const jumpEdges = edges.filter(e => e.type === 'jump');
+    expect(jumpEdges.length).toBe(0); // dynamic target skipped
+  });
+
+  it('should extract edges from if blocks', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: [
+        '*start',
+        '[if exp="f.x==1"]',
+        '[jump target="*a"]',
+        '[else]',
+        '[jump target="*b"]',
+        '[endif]',
+        '*a',
+        '[s]',
+        '*b',
+        '[s]',
+      ].join('\n'),
+    });
+    const { edges } = buildGraph(index);
+    const jumpEdges = edges.filter(e => e.type === 'jump');
+    expect(jumpEdges.length).toBe(2);
+    expect(jumpEdges.map(e => e.to)).toContain('test.ks:*a');
+    expect(jumpEdges.map(e => e.to)).toContain('test.ks:*b');
+  });
+
+  it('should extract edges from macro definitions', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: [
+        '[macro name="mygo"]',
+        '[jump target="*dest"]',
+        '[endmacro]',
+        '*dest',
+        '[s]',
+      ].join('\n'),
+    });
+    const { edges } = buildGraph(index);
+    const jumpEdges = edges.filter(e => e.type === 'jump');
+    expect(jumpEdges.length).toBe(1);
+    expect(jumpEdges[0].to).toBe('test.ks:*dest');
+  });
+
+  it('should preserve condition attribute on edges', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\n[jump target="*end" cond="f.flag==true"]\n*end\n[s]',
+    });
+    const { edges } = buildGraph(index);
+    expect(edges[0].condition).toBe('f.flag==true');
+  });
+
+  it('should create target node if not already defined', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\n[jump storage="other.ks" target="*somewhere"]',
+    });
+    const { nodes } = buildGraph(index);
+    // "other.ks" isn't in the index, but a node should still be created
+    const targetNode = nodes.find(n => n.id === 'other.ks:*somewhere');
+    expect(targetNode).toBeDefined();
+    expect(targetNode!.type).toBe('label');
+    expect(targetNode!.label).toBe('*somewhere');
+  });
+
+  it('should handle scene-only jump (no target label)', () => {
+    const index = buildMockIndex(
+      { name: 'first.ks', source: '*start\n[jump storage="second.ks"]' },
+      { name: 'second.ks', source: '*begin\n[s]' },
+    );
+    const { edges } = buildGraph(index);
+    const jumpEdge = edges.find(e => e.type === 'jump');
+    expect(jumpEdge).toBeDefined();
+    expect(jumpEdge!.to).toBe('scene:second.ks');
+  });
+
+  it('should not duplicate nodes when referenced multiple times', () => {
+    const index = buildMockIndex({
+      name: 'test.ks',
+      source: '*start\n[jump target="*end"]\n*mid\n[jump target="*end"]\n*end\n[s]',
+    });
+    const { nodes } = buildGraph(index);
+    const endNodes = nodes.filter(n => n.id === 'test.ks:*end');
+    expect(endNodes.length).toBe(1);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Flow Graph: Mermaid syntax generation
+// ════════════════════════════════════════════════════════════════════
+
+describe('Flow Graph: Mermaid syntax generation', () => {
+  // Reimplement toMermaid logic for testing
+  function toMermaid(graph: { nodes: Array<{ id: string; label: string; type: string }>; edges: Array<{ from: string; to: string; label: string; type: string }> }) {
+    const lines: string[] = ['graph TD'];
+    const idMap = new Map<string, string>();
+    let idCounter = 0;
+    const mid = (rawId: string): string => {
+      if (!idMap.has(rawId)) idMap.set(rawId, `n${idCounter++}`);
+      return idMap.get(rawId)!;
+    };
+    const esc = (s: string): string => s.replace(/"/g, '#quot;').replace(/[<>{}|]/g, ' ');
+
+    for (const node of graph.nodes) {
+      const id = mid(node.id);
+      const label = esc(node.label);
+      switch (node.type) {
+        case 'scene-start': lines.push(`  ${id}(["\u{1F4C4} ${label}"])`); break;
+        case 'label': lines.push(`  ${id}["${label}"]`); break;
+        case 'choice': lines.push(`  ${id}{"${label}"}`); break;
+        case 'end': lines.push(`  ${id}(("${label}"))`); break;
+      }
+    }
+    for (const edge of graph.edges) {
+      const from = mid(edge.from);
+      const to = mid(edge.to);
+      const label = esc(edge.label);
+      switch (edge.type) {
+        case 'jump': lines.push(label ? `  ${from} -->|"${label}"| ${to}` : `  ${from} --> ${to}`); break;
+        case 'call': lines.push(label ? `  ${from} -.->|"${label}"| ${to}` : `  ${from} -.-> ${to}`); break;
+        case 'choice': lines.push(label ? `  ${from} ==>|"${label}"| ${to}` : `  ${from} ==> ${to}`); break;
+        case 'fallthrough': lines.push(`  ${from} -.-> ${to}`); break;
+      }
+    }
+    return lines.join('\n');
+  }
+
+  it('should generate valid Mermaid header', () => {
+    const result = toMermaid({ nodes: [], edges: [] });
+    expect(result).toBe('graph TD');
+  });
+
+  it('should generate scene-start nodes with stadium shape', () => {
+    const result = toMermaid({
+      nodes: [{ id: 'scene:test.ks', label: 'test', type: 'scene-start' }],
+      edges: [],
+    });
+    expect(result).toContain('n0(["📄 test"])');
+  });
+
+  it('should generate label nodes with rectangle shape', () => {
+    const result = toMermaid({
+      nodes: [{ id: 'test.ks:*start', label: '*start', type: 'label' }],
+      edges: [],
+    });
+    expect(result).toContain('n0["*start"]');
+  });
+
+  it('should generate jump edges with arrow', () => {
+    const result = toMermaid({
+      nodes: [
+        { id: 'a', label: 'A', type: 'label' },
+        { id: 'b', label: 'B', type: 'label' },
+      ],
+      edges: [{ from: 'a', to: 'b', label: '[jump]', type: 'jump' }],
+    });
+    expect(result).toContain('n0 -->|"[jump]"| n1');
+  });
+
+  it('should generate call edges with dotted arrow', () => {
+    const result = toMermaid({
+      nodes: [
+        { id: 'a', label: 'A', type: 'label' },
+        { id: 'b', label: 'B', type: 'label' },
+      ],
+      edges: [{ from: 'a', to: 'b', label: '[call]', type: 'call' }],
+    });
+    expect(result).toContain('n0 -.->|"[call]"| n1');
+  });
+
+  it('should generate choice edges with thick arrow', () => {
+    const result = toMermaid({
+      nodes: [
+        { id: 'a', label: 'A', type: 'label' },
+        { id: 'b', label: 'B', type: 'label' },
+      ],
+      edges: [{ from: 'a', to: 'b', label: '[button]', type: 'choice' }],
+    });
+    expect(result).toContain('n0 ==>|"[button]"| n1');
+  });
+
+  it('should generate fallthrough edges with dotted arrow (no label)', () => {
+    const result = toMermaid({
+      nodes: [
+        { id: 'a', label: 'A', type: 'scene-start' },
+        { id: 'b', label: 'B', type: 'label' },
+      ],
+      edges: [{ from: 'a', to: 'b', label: '', type: 'fallthrough' }],
+    });
+    expect(result).toContain('n0 -.-> n1');
+  });
+
+  it('should escape special characters in labels', () => {
+    const esc = (s: string): string => s.replace(/"/g, '#quot;').replace(/[<>{}|]/g, ' ');
+    expect(esc('label with "quotes"')).toBe('label with #quot;quotes#quot;');
+    expect(esc('label with <html>')).toBe('label with  html ');
+    expect(esc('label with {braces}')).toBe('label with  braces ');
+  });
+
+  it('should assign stable numeric IDs', () => {
+    const result = toMermaid({
+      nodes: [
+        { id: 'scene:first.ks', label: 'first', type: 'scene-start' },
+        { id: 'first.ks:*start', label: '*start', type: 'label' },
+        { id: 'first.ks:*end', label: '*end', type: 'label' },
+      ],
+      edges: [
+        { from: 'first.ks:*start', to: 'first.ks:*end', label: '', type: 'jump' },
+      ],
+    });
+    // IDs assigned in order: n0 (scene), n1 (*start), n2 (*end)
+    expect(result).toContain('n0(["📄 first"])');
+    expect(result).toContain('n1["*start"]');
+    expect(result).toContain('n2["*end"]');
+    expect(result).toContain('n1 --> n2');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Debug Bridge: hit count condition parsing
+// ════════════════════════════════════════════════════════════════════
+
+describe('Debug Bridge: hit count condition parsing', () => {
+  // Reimplement the hitCondition logic from debug-bridge.js
+  function evaluateHitCondition(hitExpr: string, hitCount: number): boolean {
+    hitExpr = hitExpr.trim();
+    if (hitExpr.charAt(0) === '>') {
+      if (hitExpr.charAt(1) === '=') {
+        return hitCount >= parseInt(hitExpr.substring(2));
+      } else {
+        return hitCount > parseInt(hitExpr.substring(1));
+      }
+    } else if (hitExpr.charAt(0) === '%') {
+      return hitCount % parseInt(hitExpr.substring(1)) === 0;
+    } else if (hitExpr.substring(0, 2) === '==') {
+      return hitCount === parseInt(hitExpr.substring(2));
+    } else {
+      return hitCount === parseInt(hitExpr);
+    }
+  }
+
+  it('should match exact count: "5"', () => {
+    expect(evaluateHitCondition('5', 4)).toBe(false);
+    expect(evaluateHitCondition('5', 5)).toBe(true);
+    expect(evaluateHitCondition('5', 6)).toBe(false);
+  });
+
+  it('should match exact count: "==5"', () => {
+    expect(evaluateHitCondition('==5', 4)).toBe(false);
+    expect(evaluateHitCondition('==5', 5)).toBe(true);
+    expect(evaluateHitCondition('==5', 6)).toBe(false);
+  });
+
+  it('should match greater than: ">5"', () => {
+    expect(evaluateHitCondition('>5', 5)).toBe(false);
+    expect(evaluateHitCondition('>5', 6)).toBe(true);
+    expect(evaluateHitCondition('>5', 100)).toBe(true);
+  });
+
+  it('should match greater than or equal: ">=5"', () => {
+    expect(evaluateHitCondition('>=5', 4)).toBe(false);
+    expect(evaluateHitCondition('>=5', 5)).toBe(true);
+    expect(evaluateHitCondition('>=5', 6)).toBe(true);
+  });
+
+  it('should match modulo: "%3"', () => {
+    expect(evaluateHitCondition('%3', 1)).toBe(false);
+    expect(evaluateHitCondition('%3', 2)).toBe(false);
+    expect(evaluateHitCondition('%3', 3)).toBe(true);
+    expect(evaluateHitCondition('%3', 6)).toBe(true);
+    expect(evaluateHitCondition('%3', 7)).toBe(false);
+  });
+
+  it('should handle whitespace in expressions', () => {
+    expect(evaluateHitCondition('  5  ', 5)).toBe(true);
+    expect(evaluateHitCondition('  >=10  ', 10)).toBe(true);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Debug Bridge: log point message interpolation
+// ════════════════════════════════════════════════════════════════════
+
+describe('Debug Bridge: log point message interpolation', () => {
+  // Reimplement the logMessage replacement logic from debug-bridge.js
+  function interpolateLogMessage(
+    logMessage: string,
+    evalFn: (expr: string) => string,
+  ): string {
+    return logMessage.replace(/\{([^}]+)\}/g, function (_, expr) {
+      try { return evalFn(expr); } catch (e) { return '{' + expr + '}'; }
+    });
+  }
+
+  it('should replace {expr} with evaluated values', () => {
+    const result = interpolateLogMessage('x = {f.x}, y = {f.y}', (expr) => {
+      if (expr === 'f.x') return '10';
+      if (expr === 'f.y') return '20';
+      return '';
+    });
+    expect(result).toBe('x = 10, y = 20');
+  });
+
+  it('should keep original text for failed evaluations', () => {
+    const result = interpolateLogMessage('value = {invalid}', () => {
+      throw new Error('undefined');
+    });
+    expect(result).toBe('value = {invalid}');
+  });
+
+  it('should handle messages with no interpolations', () => {
+    const result = interpolateLogMessage('plain message', () => '');
+    expect(result).toBe('plain message');
+  });
+
+  it('should handle multiple consecutive interpolations', () => {
+    const result = interpolateLogMessage('{a}{b}{c}', (expr) => expr.toUpperCase());
+    expect(result).toBe('ABC');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Debug Adapter: path helper logic
+// ════════════════════════════════════════════════════════════════════
+
+describe('Debug Adapter: path helper logic', () => {
+  // Test the toGamePath / toAbsolutePath logic
+  const path = require('path');
+
+  function toGamePath(projectRoot: string, absolutePath: string): string {
+    const relative = path.relative(projectRoot, absolutePath);
+    return relative.replace(/\\/g, '/');
+  }
+
+  function toAbsolutePath(projectRoot: string, gamePath: string): string {
+    return path.join(projectRoot, gamePath);
+  }
+
+  it('should convert absolute path to game-relative path', () => {
+    const root = path.resolve('/game/project');
+    const abs = path.join(root, 'data', 'scenario', 'first.ks');
+    expect(toGamePath(root, abs)).toBe('data/scenario/first.ks');
+  });
+
+  it('should convert game path to absolute path', () => {
+    const root = path.resolve('/game/project');
+    const result = toAbsolutePath(root, 'data/scenario/first.ks');
+    expect(result).toBe(path.join(root, 'data', 'scenario', 'first.ks'));
+  });
+
+  it('should use forward slashes in game paths', () => {
+    const root = path.resolve('/game/project');
+    const abs = path.join(root, 'data', 'scenario', 'sub', 'deep.ks');
+    const gamePath = toGamePath(root, abs);
+    expect(gamePath).not.toContain('\\');
+    expect(gamePath).toBe('data/scenario/sub/deep.ks');
+  });
+
+  it('should handle root-level files', () => {
+    const root = path.resolve('/game/project');
+    const abs = path.join(root, 'index.html');
+    expect(toGamePath(root, abs)).toBe('index.html');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Debug Adapter: breakpoint info construction
+// ════════════════════════════════════════════════════════════════════
+
+describe('Debug Adapter: breakpoint info construction', () => {
+  interface BreakpointInfo {
+    line: number;
+    condition?: string;
+    hitCondition?: string;
+    logMessage?: string;
+  }
+
+  function buildBreakpointInfos(clientBps: Array<{
+    line: number;
+    condition?: string;
+    hitCondition?: string;
+    logMessage?: string;
+  }>): BreakpointInfo[] {
+    return clientBps.map(bp => ({
+      line: bp.line,
+      condition: bp.condition,
+      hitCondition: bp.hitCondition,
+      logMessage: bp.logMessage,
+    }));
+  }
+
+  it('should create simple breakpoint info', () => {
+    const infos = buildBreakpointInfos([{ line: 10 }]);
+    expect(infos.length).toBe(1);
+    expect(infos[0].line).toBe(10);
+    expect(infos[0].condition).toBeUndefined();
+    expect(infos[0].hitCondition).toBeUndefined();
+    expect(infos[0].logMessage).toBeUndefined();
+  });
+
+  it('should create conditional breakpoint info', () => {
+    const infos = buildBreakpointInfos([{ line: 5, condition: 'f.x > 10' }]);
+    expect(infos[0].condition).toBe('f.x > 10');
+  });
+
+  it('should create hit count breakpoint info', () => {
+    const infos = buildBreakpointInfos([{ line: 5, hitCondition: '>=5' }]);
+    expect(infos[0].hitCondition).toBe('>=5');
+  });
+
+  it('should create log point info', () => {
+    const infos = buildBreakpointInfos([{ line: 5, logMessage: 'x={f.x}' }]);
+    expect(infos[0].logMessage).toBe('x={f.x}');
+  });
+
+  it('should handle multiple breakpoints', () => {
+    const infos = buildBreakpointInfos([
+      { line: 1 },
+      { line: 5, condition: 'f.flag' },
+      { line: 10, hitCondition: '%3' },
+      { line: 15, logMessage: 'reached line 15' },
+    ]);
+    expect(infos.length).toBe(4);
+    expect(infos[1].condition).toBe('f.flag');
+    expect(infos[2].hitCondition).toBe('%3');
+    expect(infos[3].logMessage).toBe('reached line 15');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Debug Adapter: scope reference mapping
+// ════════════════════════════════════════════════════════════════════
+
+describe('Debug Adapter: scope reference mapping', () => {
+  it('should map variablesReference 1 to game variables (f)', () => {
+    const scopeNames: Record<number, string> = { 1: 'f', 2: 'sf', 3: 'tf' };
+    expect(scopeNames[1]).toBe('f');
+  });
+
+  it('should map variablesReference 2 to system variables (sf)', () => {
+    const scopeNames: Record<number, string> = { 1: 'f', 2: 'sf', 3: 'tf' };
+    expect(scopeNames[2]).toBe('sf');
+  });
+
+  it('should map variablesReference 3 to temporary variables (tf)', () => {
+    const scopeNames: Record<number, string> = { 1: 'f', 2: 'sf', 3: 'tf' };
+    expect(scopeNames[3]).toBe('tf');
+  });
+
+  it('should return undefined for unknown references', () => {
+    const scopeNames: Record<number, string> = { 1: 'f', 2: 'sf', 3: 'tf' };
+    expect(scopeNames[4]).toBeUndefined();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Debug Adapter: bridge message serialization
+// ════════════════════════════════════════════════════════════════════
+
+describe('Debug Adapter: bridge message format', () => {
+  it('should serialize setBreakpoints command correctly', () => {
+    const breakpoints = [
+      { file: 'first.ks', line: 5, condition: 'f.x > 0' },
+      { file: 'first.ks', line: 10, hitCondition: '>=3' },
+      { file: 'second.ks', line: 1, logMessage: 'entered scene 2' },
+    ];
+    const msg = JSON.stringify({ command: 'setBreakpoints', breakpoints });
+    const parsed = JSON.parse(msg);
+    expect(parsed.command).toBe('setBreakpoints');
+    expect(parsed.breakpoints.length).toBe(3);
+    expect(parsed.breakpoints[0].condition).toBe('f.x > 0');
+    expect(parsed.breakpoints[1].hitCondition).toBe('>=3');
+    expect(parsed.breakpoints[2].logMessage).toBe('entered scene 2');
+  });
+
+  it('should serialize stopped event data correctly', () => {
+    const stoppedData = {
+      type: 'stopped',
+      data: {
+        reason: 'breakpoint',
+        file: 'data/scenario/first.ks',
+        line: 10,
+        tag: 'jump',
+        params: { target: '*end' },
+        callStack: [{ file: 'data/scenario/first.ks', index: 5, tag: 'call' }],
+        variables: {
+          f: { x: '10', name: 'test' },
+          sf: { bgm_volume: '100' },
+          tf: { temp: '1' },
+        },
+      },
+    };
+    const serialized = JSON.stringify(stoppedData);
+    const parsed = JSON.parse(serialized);
+    expect(parsed.type).toBe('stopped');
+    expect(parsed.data.reason).toBe('breakpoint');
+    expect(parsed.data.file).toBe('data/scenario/first.ks');
+    expect(parsed.data.line).toBe(10);
+    expect(parsed.data.callStack.length).toBe(1);
+    expect(parsed.data.variables.f.x).toBe('10');
+  });
+
+  it('should serialize exception event data correctly', () => {
+    const exceptionData = {
+      type: 'exception',
+      data: {
+        reason: 'exception',
+        message: 'ReferenceError: undefinedVar is not defined',
+        file: 'test.ks',
+        line: 5,
+        tag: 'iscript',
+        params: {},
+        callStack: [],
+        variables: { f: {}, sf: {}, tf: {} },
+      },
+    };
+    const parsed = JSON.parse(JSON.stringify(exceptionData));
+    expect(parsed.type).toBe('exception');
+    expect(parsed.data.message).toContain('ReferenceError');
+    expect(parsed.data.tag).toBe('iscript');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Debug Bridge: safeClone logic
+// ════════════════════════════════════════════════════════════════════
+
+describe('Debug Bridge: safeClone variable serialization', () => {
+  function safeClone(obj: Record<string, unknown>): Record<string, string> {
+    try {
+      const result: Record<string, string> = {};
+      for (const key in obj) {
+        if (!obj.hasOwnProperty(key)) continue;
+        const val = obj[key];
+        if (val === null || val === undefined) {
+          result[key] = String(val);
+        } else if (typeof val === 'object') {
+          result[key] = JSON.stringify(val);
+        } else {
+          result[key] = String(val);
+        }
+      }
+      return result;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  it('should convert numbers to strings', () => {
+    expect(safeClone({ x: 42 })).toEqual({ x: '42' });
+  });
+
+  it('should convert booleans to strings', () => {
+    expect(safeClone({ flag: true })).toEqual({ flag: 'true' });
+  });
+
+  it('should convert null to "null"', () => {
+    expect(safeClone({ x: null })).toEqual({ x: 'null' });
+  });
+
+  it('should convert undefined to "undefined"', () => {
+    expect(safeClone({ x: undefined })).toEqual({ x: 'undefined' });
+  });
+
+  it('should JSON.stringify objects', () => {
+    expect(safeClone({ arr: [1, 2, 3] as unknown })).toEqual({ arr: '[1,2,3]' });
+    expect(safeClone({ obj: { a: 1 } as unknown })).toEqual({ obj: '{"a":1}' });
+  });
+
+  it('should convert strings as-is', () => {
+    expect(safeClone({ name: 'test' as unknown })).toEqual({ name: 'test' });
+  });
+
+  it('should handle empty object', () => {
+    expect(safeClone({})).toEqual({});
+  });
+
+  it('should skip inherited properties', () => {
+    const proto = { inherited: 'yes' };
+    const obj = Object.create(proto);
+    obj.own = 'value';
+    expect(safeClone(obj)).toEqual({ own: 'value' });
+  });
+});

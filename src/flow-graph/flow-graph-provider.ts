@@ -410,8 +410,6 @@ ${mermaidDef}
       const allNodes = document.querySelectorAll('.node');
       const foundIds = [];
       allNodes.forEach(el => { if (el.id) foundIds.push(el.id); });
-      console.log('Mermaid node IDs:', foundIds);
-      console.log('clickData keys:', Object.keys(clickData));
 
       allNodes.forEach(el => {
         // Mermaid generates IDs like "flowchart-n0-123" — extract the middle part

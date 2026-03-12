@@ -13,7 +13,11 @@ import {
   IfBlockNode,
   MacroDefNode,
   VariableInfo,
+  CharacterInfo,
   LabelNode,
+  CHARA_NAME_TAGS,
+  Range as AstRange,
+  Position as AstPosition,
 } from '../parser/types';
 
 export class ProjectIndexer {
@@ -78,8 +82,9 @@ export class ProjectIndexer {
       this.index.globalMacros.set(name, { file: fileName, node });
     }
 
-    // Index variables
+    // Index variables and characters
     this.extractVariables(parsed.nodes, fileName);
+    this.extractCharacters(parsed.nodes, fileName);
 
     this._onDidUpdate.fire(this.index);
     return parsed;
@@ -122,6 +127,16 @@ export class ProjectIndexer {
         this.index.variables.set(name, filtered);
       }
     }
+
+    // Clean characters
+    for (const [name, entries] of this.index.characters) {
+      const filtered = entries.filter(e => e.file !== fileName);
+      if (filtered.length === 0) {
+        this.index.characters.delete(name);
+      } else {
+        this.index.characters.set(name, filtered);
+      }
+    }
   }
 
   private extractVariables(nodes: ScenarioNode[], file: string): void {
@@ -159,18 +174,22 @@ export class ProjectIndexer {
     for (const attr of node.attributes) {
       if (!attr.value) continue;
 
+      // Use valueRange for precise positioning; fall back to attr.range
+      const exprRange = attr.valueRange ?? attr.range;
+
       // Check for variable writes in [eval]
       if (node.name === 'eval' && attr.name === 'exp') {
         // Pattern: f.var = value or sf.var = value
         const writeMatch = attr.value.match(/^(f|sf|tf)\.(\w+)\s*=/);
         if (writeMatch) {
-          this.addVariable(writeMatch[1] as 'f' | 'sf' | 'tf', writeMatch[2], file, attr.range, 'write');
+          const varRange = this.computeVarRange(attr.value, writeMatch.index!, writeMatch[0].length - (writeMatch[0].length - writeMatch[0].trimEnd().length), exprRange);
+          this.addVariable(writeMatch[1] as 'f' | 'sf' | 'tf', writeMatch[2], file, attr.range, 'write', varRange);
         }
       }
 
       // Check for variable reads in expressions
       if (attr.name === 'exp' || attr.name === 'cond') {
-        this.extractVariablesFromExpression(attr.value, file, attr.range);
+        this.extractVariablesFromExpression(attr.value, file, exprRange);
       }
     }
   }
@@ -188,8 +207,48 @@ export class ProjectIndexer {
       // Simple heuristic: if followed by = (but not == or !=), it's a write
       const afterMatch = expr.substring(match.index + match[0].length);
       const isWrite = /^\s*=[^=]/.test(afterMatch);
-      this.addVariable(scope, name, file, range, isWrite ? 'write' : 'read');
+      const varRange = this.computeVarRange(expr, match.index, match[0].length, range);
+      this.addVariable(scope, name, file, range, isWrite ? 'write' : 'read', varRange);
     }
+  }
+
+  /**
+   * Compute the precise line/column range of a regex match within an expression,
+   * given the expression's containing range (which may be an attribute valueRange or scriptRange).
+   */
+  private computeVarRange(
+    expr: string,
+    matchOffset: number,
+    matchLength: number,
+    containerRange: AstRange,
+  ): AstRange {
+    // Walk through the expression text to compute line/column at matchOffset
+    let line = containerRange.start.line;
+    let col = containerRange.start.column;
+
+    for (let i = 0; i < matchOffset; i++) {
+      if (expr[i] === '\n') {
+        line++;
+        col = 0;
+      } else {
+        col++;
+      }
+    }
+
+    const startPos: AstPosition = { line, column: col };
+
+    // Walk the match itself for the end position
+    for (let i = 0; i < matchLength; i++) {
+      if (expr[matchOffset + i] === '\n') {
+        line++;
+        col = 0;
+      } else {
+        col++;
+      }
+    }
+
+    const endPos: AstPosition = { line, column: col };
+    return { start: startPos, end: endPos };
   }
 
   private addVariable(
@@ -198,11 +257,55 @@ export class ProjectIndexer {
     file: string,
     range: import('../parser/types').Range,
     usage: 'read' | 'write',
+    varRange?: AstRange,
   ): void {
     const fullName = `${scope}.${name}`;
     const entries = this.index.variables.get(fullName) ?? [];
-    entries.push({ scope, name, file, range, usage });
+    entries.push({ scope, name, file, range, usage, varRange });
     this.index.variables.set(fullName, entries);
+  }
+
+  // ── Character indexing ──────────────────────────────────────────
+
+  private extractCharacters(nodes: ScenarioNode[], file: string): void {
+    for (const node of nodes) {
+      this.extractCharactersFromNode(node, file);
+    }
+  }
+
+  private extractCharactersFromNode(node: ScenarioNode, file: string): void {
+    switch (node.type) {
+      case 'tag':
+        if (CHARA_NAME_TAGS.has(node.name)) {
+          for (const attr of node.attributes) {
+            if (attr.name === 'name' && attr.value && attr.valueRange) {
+              this.addCharacter(attr.value, file, attr.valueRange, node.name);
+            }
+          }
+        }
+        break;
+      case 'if_block':
+        this.extractCharacters(node.thenBranch, file);
+        for (const branch of node.elsifBranches) {
+          this.extractCharacters(branch.body, file);
+        }
+        if (node.elseBranch) {
+          this.extractCharacters(node.elseBranch, file);
+        }
+        break;
+      case 'macro_def':
+        this.extractCharacters(node.body, file);
+        break;
+    }
+  }
+
+  private addCharacter(name: string, file: string, nameRange: AstRange, tagName: string): void {
+    // Skip dynamic values like &mp.name
+    if (name.startsWith('&')) return;
+    const key = name.toLowerCase();
+    const entries = this.index.characters.get(key) ?? [];
+    entries.push({ name, file, nameRange, tagName });
+    this.index.characters.set(key, entries);
   }
 
   private createEmptyIndex(): ProjectIndex {
@@ -211,6 +314,7 @@ export class ProjectIndexer {
       globalLabels: new Map(),
       globalMacros: new Map(),
       variables: new Map(),
+      characters: new Map(),
     };
   }
 

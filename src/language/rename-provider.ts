@@ -1,6 +1,8 @@
 /**
  * Rename provider for TyranoScript .ks files.
- * Supports safe renaming of labels and macros across the entire project.
+ *
+ * Free: label and macro renaming across the project.
+ * Pro:  variable, character, and storage/file renaming.
  */
 
 import * as vscode from 'vscode';
@@ -9,11 +11,45 @@ import {
   ProjectIndex,
   ScenarioNode,
   LABEL_REF_TAGS,
+  CHARA_NAME_TAGS,
 } from '../parser/types';
 import { localize } from './i18n';
+import type { LicenseManager } from '../license/license-manager';
+
+type RenameKind = 'label' | 'macro' | 'variable' | 'character' | 'storage';
+
+interface RenameInfo {
+  kind: RenameKind;
+  name: string;
+  range: vscode.Range;
+}
+
+/** Map tag names to their asset subdirectories for storage rename. */
+const STORAGE_FOLDERS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['jump', ['data/scenario']],
+  ['call', ['data/scenario']],
+  ['bg', ['data/bgimage']],
+  ['image', ['data/image', 'data/fgimage']],
+  ['chara_new', ['data/fgimage']],
+  ['chara_face', ['data/fgimage']],
+  ['chara_mod', ['data/fgimage']],
+  ['chara_show', ['data/fgimage']],
+  ['playbgm', ['data/bgm']],
+  ['fadeinbgm', ['data/bgm']],
+  ['xchgbgm', ['data/bgm']],
+  ['playse', ['data/sound']],
+  ['fadeinse', ['data/sound']],
+  ['movie', ['data/video']],
+  ['bgmovie', ['data/video']],
+  ['loadjs', ['data/others']],
+  ['loadcss', ['data/others']],
+]);
 
 export class TyranoRenameProvider implements vscode.RenameProvider {
-  constructor(private getIndex: () => ProjectIndex | undefined) {}
+  constructor(
+    private getIndex: () => ProjectIndex | undefined,
+    private licenseManager?: LicenseManager,
+  ) {}
 
   prepareRename(
     document: vscode.TextDocument,
@@ -27,38 +63,56 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     return { range: info.range, placeholder: info.name };
   }
 
-  provideRenameEdits(
+  async provideRenameEdits(
     document: vscode.TextDocument,
     position: vscode.Position,
     newName: string,
     _token: vscode.CancellationToken,
-  ): vscode.ProviderResult<vscode.WorkspaceEdit> {
+  ): Promise<vscode.WorkspaceEdit | undefined> {
     const info = this.getSymbolAtPosition(document, position);
     if (!info) return undefined;
 
     const index = this.getIndex();
     if (!index) return undefined;
 
+    // Pro gate for variable, character, storage
+    if (info.kind === 'variable' || info.kind === 'character' || info.kind === 'storage') {
+      if (this.licenseManager && !(await this.licenseManager.requirePro('refactoring'))) {
+        return undefined;
+      }
+    }
+
     const edit = new vscode.WorkspaceEdit();
 
-    if (info.kind === 'label') {
-      this.renameLabelDefinitions(info.name, newName, index, edit);
-      this.renameLabelReferences(info.name, newName, index, edit);
-    } else {
-      this.renameMacroDefinition(info.name, newName, index, edit);
-      this.renameMacroUsages(info.name, newName, index, edit);
+    switch (info.kind) {
+      case 'label':
+        this.renameLabelDefinitions(info.name, newName, index, edit);
+        this.renameLabelReferences(info.name, newName, index, edit);
+        break;
+      case 'macro':
+        this.renameMacroDefinition(info.name, newName, index, edit);
+        this.renameMacroUsages(info.name, newName, index, edit);
+        break;
+      case 'variable':
+        this.renameVariable(info.name, newName, index, edit);
+        break;
+      case 'character':
+        this.renameCharacter(info.name, newName, index, edit);
+        break;
+      case 'storage':
+        await this.renameStorage(info.name, newName, index, edit, document, position);
+        break;
     }
 
     return edit;
   }
 
-  /**
-   * Use the Scanner to determine what symbol is under the cursor.
-   */
+  // ── Symbol detection ───────────────────────────────────────────
+
   private getSymbolAtPosition(
     document: vscode.TextDocument,
     position: vscode.Position,
-  ): { kind: 'label' | 'macro'; name: string; range: vscode.Range } | undefined {
+  ): RenameInfo | undefined {
     const index = this.getIndex();
     if (!index) return undefined;
 
@@ -69,28 +123,26 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     const token = this.findTokenAtPosition(tokens, position);
     if (!token) return undefined;
 
-    // Case 1: Cursor is on a LABEL token → label rename
+    // ── Label ──
     if (token.type === 'LABEL') {
       const range = new vscode.Range(
-        new vscode.Position(token.line, token.column + 1), // skip the *
+        new vscode.Position(token.line, token.column + 1),
         new vscode.Position(token.line, token.column + 1 + token.value.length),
       );
       return { kind: 'label', name: token.value, range };
     }
 
-    // Case 2: Cursor is on a TAG_NAME
+    // ── TAG_NAME ──
     if (token.type === 'TAG_NAME') {
-      // Check if this TAG_NAME is inside a [macro name="..."] definition
       const nextTokens = this.getFollowingTokens(tokens, token);
+
+      // [macro name="xxx"] — rename the macro name
       if (token.value === 'macro') {
-        // This is the 'macro' keyword itself; the renameable part is the name attribute
         const nameAttr = this.findNameAttribute(nextTokens);
-        if (nameAttr) {
-          return this.makeMacroRenameInfo(nameAttr);
-        }
+        if (nameAttr) return this.makeMacroRenameInfo(nameAttr);
       }
 
-      // Check if this tag name matches a known macro → rename macro usage
+      // Tag name matches a known macro → rename macro usage
       const macroName = token.value.toLowerCase();
       if (index.globalMacros.has(macroName)) {
         const range = new vscode.Range(
@@ -101,23 +153,52 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
       }
     }
 
-    // Case 3: Cursor is on an ATTR_VALUE that is a name attribute inside [macro name="..."]
+    // ── ATTR_VALUE ──
     if (token.type === 'ATTR_VALUE') {
       const context = this.getTagContext(tokens, token);
+
+      // [macro name="xxx"]
       if (context?.tagName === 'macro' && context.attrName === 'name') {
         return this.makeMacroRenameInfo(token);
       }
+
+      // Variable in exp/cond: f.xxx, sf.xxx, tf.xxx
+      if (context && (context.attrName === 'exp' || context.attrName === 'cond')) {
+        const varInfo = this.findVariableAtCursor(token, position);
+        if (varInfo) return varInfo;
+      }
+
+      // Character name in chara_* tags
+      if (context && CHARA_NAME_TAGS.has(context.tagName) && context.attrName === 'name') {
+        if (!token.value.startsWith('&')) {
+          const startCol = token.column + 1;
+          const range = new vscode.Range(
+            new vscode.Position(token.line, startCol),
+            new vscode.Position(token.line, startCol + token.value.length),
+          );
+          return { kind: 'character', name: token.value, range };
+        }
+      }
+
+      // Storage reference
+      if (context && (context.attrName === 'storage' || context.attrName === 'file')) {
+        if (!token.value.startsWith('&')) {
+          const startCol = token.column + 1;
+          const range = new vscode.Range(
+            new vscode.Position(token.line, startCol),
+            new vscode.Position(token.line, startCol + token.value.length),
+          );
+          return { kind: 'storage', name: token.value, range };
+        }
+      }
     }
 
-    // Case 4: Cursor is on an ATTR_NAME that is 'name' inside [macro]
+    // ── ATTR_NAME 'name' inside [macro] ──
     if (token.type === 'ATTR_NAME' && token.value === 'name') {
       const context = this.getTagContext(tokens, token);
       if (context?.tagName === 'macro') {
-        // Find the value token that follows
         const valueToken = this.findNextValueToken(tokens, token);
-        if (valueToken) {
-          return this.makeMacroRenameInfo(valueToken);
-        }
+        if (valueToken) return this.makeMacroRenameInfo(valueToken);
       }
     }
 
@@ -125,8 +206,262 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
   }
 
   /**
-   * Find the token at the given position.
+   * Find a variable (f.xxx / sf.xxx / tf.xxx) at the cursor position
+   * within an ATTR_VALUE token (exp="..." or cond="...").
    */
+  private findVariableAtCursor(token: Token, position: vscode.Position): RenameInfo | undefined {
+    const value = token.value;
+    const valueStartCol = token.column + 1; // skip opening quote
+    const cursorOffsetInValue = position.character - valueStartCol;
+
+    const regex = /(f|sf|tf)\.(\w+)/g;
+    let match;
+    while ((match = regex.exec(value)) !== null) {
+      const matchStart = match.index;
+      const matchEnd = matchStart + match[0].length;
+
+      if (cursorOffsetInValue >= matchStart && cursorOffsetInValue <= matchEnd) {
+        const range = new vscode.Range(
+          new vscode.Position(token.line, valueStartCol + matchStart),
+          new vscode.Position(token.line, valueStartCol + matchEnd),
+        );
+        return { kind: 'variable', name: match[0], range };
+      }
+    }
+
+    return undefined;
+  }
+
+  // ── Variable rename ────────────────────────────────────────────
+
+  private renameVariable(
+    oldFullName: string,
+    newInput: string,
+    index: ProjectIndex,
+    edit: vscode.WorkspaceEdit,
+  ): void {
+    // Parse old name
+    const dotIndex = oldFullName.indexOf('.');
+    const oldScope = oldFullName.substring(0, dotIndex);
+    const oldName = oldFullName.substring(dotIndex + 1);
+
+    // Parse new name: user may input "f.total" or just "total"
+    let newScope = oldScope;
+    let newName = newInput;
+    const newDotIndex = newInput.indexOf('.');
+    if (newDotIndex !== -1) {
+      newScope = newInput.substring(0, newDotIndex);
+      newName = newInput.substring(newDotIndex + 1);
+    }
+    const newFullName = `${newScope}.${newName}`;
+
+    const entries = index.variables.get(oldFullName);
+    if (!entries) return;
+
+    for (const entry of entries) {
+      if (!entry.varRange) continue;
+      const uri = this.resolveUri(entry.file);
+      const range = this.toVscodeRange(entry.varRange);
+      edit.replace(uri, range, newFullName);
+    }
+  }
+
+  // ── Character rename ───────────────────────────────────────────
+
+  private renameCharacter(
+    oldName: string,
+    newName: string,
+    index: ProjectIndex,
+    edit: vscode.WorkspaceEdit,
+  ): void {
+    const key = oldName.toLowerCase();
+    const entries = index.characters.get(key);
+    if (entries) {
+      for (const entry of entries) {
+        const uri = this.resolveUri(entry.file);
+        const range = this.toVscodeRange(entry.nameRange);
+        edit.replace(uri, range, newName);
+      }
+    }
+
+    // Also rename #speaker tags
+    for (const [file, scenario] of index.scenarios) {
+      const uri = this.resolveUri(file);
+      this.walkNodes(scenario.nodes, (node) => {
+        if (node.type !== 'tag') return;
+        // Speaker tag: #charname (parsed as tag with name starting with special char or as-is)
+        if (node.name === oldName || node.name === oldName.toLowerCase()) {
+          // Check if this is actually a #speaker tag (name matches and not a chara_ tag)
+          if (!CHARA_NAME_TAGS.has(node.name) && !LABEL_REF_TAGS.has(node.name)) {
+            // Likely a custom macro or speaker — skip if it's a known macro
+            if (!index.globalMacros.has(node.name)) {
+              const range = this.toVscodeRange(node.nameRange);
+              edit.replace(uri, range, newName);
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // ── Storage rename ─────────────────────────────────────────────
+
+  private async renameStorage(
+    oldName: string,
+    newName: string,
+    index: ProjectIndex,
+    edit: vscode.WorkspaceEdit,
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): Promise<void> {
+    // Update all storage/file references across the project
+    for (const [file, scenario] of index.scenarios) {
+      const uri = this.resolveUri(file);
+      this.walkNodes(scenario.nodes, (node) => {
+        if (node.type !== 'tag') return;
+        for (const attr of node.attributes) {
+          if ((attr.name === 'storage' || attr.name === 'file') && attr.value && attr.valueRange) {
+            if (attr.value === oldName || attr.value.toLowerCase() === oldName.toLowerCase()) {
+              const range = this.toVscodeRange(attr.valueRange);
+              edit.replace(uri, range, newName);
+            }
+          }
+        }
+      });
+    }
+
+    // Try to rename the physical file
+    await this.renamePhysicalFile(oldName, newName, edit, document, position);
+  }
+
+  /**
+   * Attempt to rename the physical file on disk.
+   * Uses the tag context to determine which directory the file lives in.
+   */
+  private async renamePhysicalFile(
+    oldName: string,
+    newName: string,
+    edit: vscode.WorkspaceEdit,
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): Promise<void> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return;
+
+    // Find the tag at cursor to determine the directory
+    const source = document.getText();
+    const scanner = new Scanner(source);
+    const tokens = scanner.scan();
+    const token = this.findTokenAtPosition(tokens, position);
+    if (!token) return;
+
+    const context = this.getTagContext(tokens, token);
+    if (!context) return;
+
+    const folders = STORAGE_FOLDERS.get(context.tagName);
+    if (!folders) return;
+
+    // Preserve extension if not provided in newName
+    const oldExt = oldName.includes('.') ? oldName.substring(oldName.lastIndexOf('.')) : '';
+    const newHasExt = newName.includes('.');
+    const actualNewName = newHasExt ? newName : newName + oldExt;
+
+    // Search each candidate folder for the old file
+    for (const folder of folders) {
+      const oldUri = vscode.Uri.joinPath(workspaceFolder.uri, folder, oldName);
+      const newUri = vscode.Uri.joinPath(workspaceFolder.uri, folder, actualNewName);
+      try {
+        await vscode.workspace.fs.stat(oldUri);
+        // File exists — add file rename to the workspace edit
+        edit.renameFile(oldUri, newUri);
+        return;
+      } catch {
+        // File not found in this folder, try next
+      }
+    }
+  }
+
+  // ── Label rename (free) ────────────────────────────────────────
+
+  private renameLabelDefinitions(
+    oldName: string,
+    newName: string,
+    index: ProjectIndex,
+    edit: vscode.WorkspaceEdit,
+  ): void {
+    const entries = index.globalLabels.get(oldName);
+    if (!entries) return;
+
+    for (const entry of entries) {
+      const uri = this.resolveUri(entry.file);
+      const range = this.toVscodeRange(entry.node.nameRange);
+      edit.replace(uri, range, newName);
+    }
+  }
+
+  private renameLabelReferences(
+    oldName: string,
+    newName: string,
+    index: ProjectIndex,
+    edit: vscode.WorkspaceEdit,
+  ): void {
+    for (const [file, scenario] of index.scenarios) {
+      const uri = this.resolveUri(file);
+      this.walkNodes(scenario.nodes, (node) => {
+        if (node.type !== 'tag') return;
+        if (LABEL_REF_TAGS.has(node.name)) {
+          for (const attr of node.attributes) {
+            if (attr.name === 'target' && attr.value != null) {
+              const targetValue = attr.value.replace(/^\*/, '');
+              if (targetValue === oldName && attr.valueRange) {
+                const hasAsterisk = attr.value.startsWith('*');
+                const replacementText = hasAsterisk ? `*${newName}` : newName;
+                const range = this.toVscodeRange(attr.valueRange);
+                edit.replace(uri, range, replacementText);
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // ── Macro rename (free) ────────────────────────────────────────
+
+  private renameMacroDefinition(
+    oldName: string,
+    newName: string,
+    index: ProjectIndex,
+    edit: vscode.WorkspaceEdit,
+  ): void {
+    const entry = index.globalMacros.get(oldName);
+    if (!entry) return;
+
+    const uri = this.resolveUri(entry.file);
+    const range = this.toVscodeRange(entry.node.nameRange);
+    edit.replace(uri, range, newName);
+  }
+
+  private renameMacroUsages(
+    oldName: string,
+    newName: string,
+    index: ProjectIndex,
+    edit: vscode.WorkspaceEdit,
+  ): void {
+    for (const [file, scenario] of index.scenarios) {
+      const uri = this.resolveUri(file);
+      this.walkNodes(scenario.nodes, (node) => {
+        if (node.type !== 'tag') return;
+        if (node.name === oldName) {
+          const range = this.toVscodeRange(node.nameRange);
+          edit.replace(uri, range, newName);
+        }
+      });
+    }
+  }
+
+  // ── Token helpers ──────────────────────────────────────────────
+
   private findTokenAtPosition(tokens: Token[], position: vscode.Position): Token | undefined {
     for (const token of tokens) {
       if (token.type === 'EOF' || token.type === 'NEWLINE') continue;
@@ -134,10 +469,8 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
       const tokenStartCol = token.column;
       let tokenEndCol: number;
       if (token.type === 'LABEL') {
-        tokenEndCol = token.column + 1 + token.value.length;  // +1 for the * prefix
+        tokenEndCol = token.column + 1 + token.value.length;
       } else if (token.type === 'ATTR_VALUE') {
-        // The scanner sets column at the opening quote and value is unquoted,
-        // so the full span including quotes is value.length + 2.
         tokenEndCol = token.column + token.value.length + 2;
       } else {
         tokenEndCol = token.column + token.value.length;
@@ -154,9 +487,6 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     return undefined;
   }
 
-  /**
-   * Get tokens that follow a given token in the stream (same tag context).
-   */
   private getFollowingTokens(tokens: Token[], after: Token): Token[] {
     const result: Token[] = [];
     let found = false;
@@ -170,9 +500,6 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     return result;
   }
 
-  /**
-   * Find the name="xxx" attribute value token in a list of tokens.
-   */
   private findNameAttribute(tokens: Token[]): Token | undefined {
     for (let i = 0; i < tokens.length; i++) {
       if (
@@ -188,9 +515,6 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     return undefined;
   }
 
-  /**
-   * Determine the tag context (tag name, attribute name) for a given token.
-   */
   private getTagContext(
     tokens: Token[],
     target: Token,
@@ -221,9 +545,6 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     return undefined;
   }
 
-  /**
-   * Find the ATTR_VALUE token that follows an ATTR_NAME token (with = in between).
-   */
   private findNextValueToken(tokens: Token[], attrNameToken: Token): Token | undefined {
     let found = false;
     for (const t of tokens) {
@@ -240,10 +561,7 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
   private makeMacroRenameInfo(
     valueToken: Token,
   ): { kind: 'macro'; name: string; range: vscode.Range } {
-    // The valueRange of a quoted attribute includes the quotes in column position
-    // but the token value itself is the unquoted content.
-    // The scanner emits ATTR_VALUE at the column of the opening quote.
-    const startCol = valueToken.column + 1; // skip opening quote
+    const startCol = valueToken.column + 1;
     const range = new vscode.Range(
       new vscode.Position(valueToken.line, startCol),
       new vscode.Position(valueToken.line, startCol + valueToken.value.length),
@@ -251,94 +569,8 @@ export class TyranoRenameProvider implements vscode.RenameProvider {
     return { kind: 'macro', name: valueToken.value.toLowerCase(), range };
   }
 
-  // ── Label renaming ──────────────────────────────────────────────────
+  // ── Shared helpers ─────────────────────────────────────────────
 
-  private renameLabelDefinitions(
-    oldName: string,
-    newName: string,
-    index: ProjectIndex,
-    edit: vscode.WorkspaceEdit,
-  ): void {
-    const entries = index.globalLabels.get(oldName);
-    if (!entries) return;
-
-    for (const entry of entries) {
-      const uri = this.resolveUri(entry.file);
-      // nameRange covers the label name (without the * prefix)
-      const range = this.toVscodeRange(entry.node.nameRange);
-      edit.replace(uri, range, newName);
-    }
-  }
-
-  private renameLabelReferences(
-    oldName: string,
-    newName: string,
-    index: ProjectIndex,
-    edit: vscode.WorkspaceEdit,
-  ): void {
-    for (const [file, scenario] of index.scenarios) {
-      const uri = this.resolveUri(file);
-      this.walkNodes(scenario.nodes, (node) => {
-        if (node.type !== 'tag') return;
-        // Check jump/call target attributes
-        if (LABEL_REF_TAGS.has(node.name)) {
-          for (const attr of node.attributes) {
-            if (attr.name === 'target' && attr.value != null) {
-              const targetValue = attr.value.replace(/^\*/, '');
-              if (targetValue === oldName && attr.valueRange) {
-                // The value may include a leading * — preserve it
-                const hasAsterisk = attr.value.startsWith('*');
-                const replacementText = hasAsterisk ? `*${newName}` : newName;
-                const range = this.toVscodeRange(attr.valueRange);
-                edit.replace(uri, range, replacementText);
-              }
-            }
-          }
-        }
-      });
-    }
-  }
-
-  // ── Macro renaming ──────────────────────────────────────────────────
-
-  private renameMacroDefinition(
-    oldName: string,
-    newName: string,
-    index: ProjectIndex,
-    edit: vscode.WorkspaceEdit,
-  ): void {
-    const entry = index.globalMacros.get(oldName);
-    if (!entry) return;
-
-    const uri = this.resolveUri(entry.file);
-    // nameRange covers the macro name inside [macro name="xxx"]
-    const range = this.toVscodeRange(entry.node.nameRange);
-    edit.replace(uri, range, newName);
-  }
-
-  private renameMacroUsages(
-    oldName: string,
-    newName: string,
-    index: ProjectIndex,
-    edit: vscode.WorkspaceEdit,
-  ): void {
-    for (const [file, scenario] of index.scenarios) {
-      const uri = this.resolveUri(file);
-      this.walkNodes(scenario.nodes, (node) => {
-        if (node.type !== 'tag') return;
-        if (node.name === oldName) {
-          const range = this.toVscodeRange(node.nameRange);
-          edit.replace(uri, range, newName);
-        }
-      });
-    }
-  }
-
-  // ── Helpers ─────────────────────────────────────────────────────────
-
-  /**
-   * Walk all nodes recursively, including branches of if_block and macro_def bodies.
-   */
   private walkNodes(nodes: ScenarioNode[], visitor: (node: ScenarioNode) => void): void {
     for (const node of nodes) {
       visitor(node);

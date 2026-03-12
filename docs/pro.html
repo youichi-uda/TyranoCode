@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TyranoCode Pro — TyranoScript開発をもっと快適に</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-sub: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --green: #3fb950;
+    --purple: #bc8cff;
+    --orange: #d29922;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    text-align: center;
+    padding: 80px 24px 60px;
+    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+  }
+  .hero-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p {
+    font-size: 20px;
+    color: var(--text-sub);
+    max-width: 600px;
+    margin: 0 auto 36px;
+  }
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 32px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #0d1117;
+    font-size: 17px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+  .hero-cta:hover { background: var(--accent-hover); }
+  .hero-price {
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--text-sub);
+  }
+
+  /* ── Comparison ── */
+  .comparison {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 60px 24px;
+  }
+  .comparison h2 {
+    text-align: center;
+    font-size: 32px;
+    margin-bottom: 40px;
+  }
+  .plan-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 640px) {
+    .plan-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 32px; }
+  }
+  .plan-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 28px;
+    background: var(--surface);
+  }
+  .plan-card.pro {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(88, 166, 255, 0.1);
+  }
+  .plan-card h3 {
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+  .plan-card .price {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+  .plan-card .price span {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-sub);
+  }
+  .plan-card ul {
+    list-style: none;
+    margin-bottom: 24px;
+  }
+  .plan-card li {
+    padding: 6px 0;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .plan-card li::before {
+    content: "✓";
+    color: var(--green);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .plan-card li.disabled {
+    color: var(--text-sub);
+    text-decoration: line-through;
+    opacity: 0.5;
+  }
+  .plan-card li.disabled::before {
+    content: "—";
+    color: var(--text-sub);
+  }
+
+  /* ── Features ── */
+  .features {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 60px 24px;
+  }
+  .features h2 {
+    text-align: center;
+    font-size: 32px;
+    margin-bottom: 48px;
+  }
+  .feature-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 640px) {
+    .feature-list { grid-template-columns: 1fr; }
+  }
+  .feature-item {
+    padding: 24px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .feature-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+  .feature-item h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+  .feature-item p {
+    font-size: 14px;
+    color: var(--text-sub);
+    line-height: 1.7;
+  }
+  .feature-item .badge-pro {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(188, 140, 255, 0.2);
+    color: var(--purple);
+    font-weight: 700;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* ── How to ── */
+  .howto {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 60px 24px;
+    text-align: center;
+  }
+  .howto h2 {
+    font-size: 32px;
+    margin-bottom: 40px;
+  }
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    text-align: left;
+  }
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0d1117;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .step-body h4 { margin-bottom: 4px; }
+  .step-body p { font-size: 14px; color: var(--text-sub); }
+  .step-body code {
+    background: var(--bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  /* ── Footer CTA ── */
+  .footer-cta {
+    text-align: center;
+    padding: 60px 24px 80px;
+  }
+  .footer-cta h2 {
+    font-size: 28px;
+    margin-bottom: 20px;
+  }
+  .footer-cta p {
+    color: var(--text-sub);
+    margin-bottom: 28px;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 13px;
+    color: var(--text-sub);
+    border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="hero-badge">VS Code Extension for TyranoScript</div>
+  <h1>Tyrano<span>Code</span> Pro</h1>
+  <p>TyranoScript / TyranoBuilder 開発のための<br>オールインワン VS Code 拡張機能</p>
+  <a href="https://y1uda.gumroad.com/l/tcpl" class="hero-cta">
+    Pro を購入する
+  </a>
+  <div class="hero-price">¥1,000 — 買い切り・永久ライセンス</div>
+</section>
+
+<!-- ── Free vs Pro ── -->
+<section class="comparison">
+  <h2>Free vs Pro</h2>
+  <div class="plan-grid">
+
+    <div class="plan-card">
+      <h3>Free</h3>
+      <div class="price">¥0 <span>/ 永久無料</span></div>
+      <ul>
+        <li>シンタックスハイライト</li>
+        <li>タグ・属性の自動補完</li>
+        <li>ホバー情報・シグネチャヘルプ</li>
+        <li>診断・リアルタイムエラー検出</li>
+        <li>ドキュメントシンボル・アウトライン</li>
+        <li>変数トラッカー</li>
+        <li>コードレンズ・インレイヒント</li>
+        <li>リンク補完・リソース補完</li>
+        <li class="disabled">デバッガー</li>
+        <li class="disabled">シナリオフローグラフ</li>
+        <li class="disabled">全ルートテスト</li>
+        <li class="disabled">パフォーマンスプロファイラー</li>
+      </ul>
+    </div>
+
+    <div class="plan-card pro">
+      <h3>Pro</h3>
+      <div class="price">¥1,000 <span>/ 買い切り</span></div>
+      <ul>
+        <li>Free の全機能</li>
+        <li>ブレークポイント付きデバッガー</li>
+        <li>シナリオフローグラフ表示</li>
+        <li>全ルート自動テスト</li>
+        <li>パフォーマンスプロファイラー</li>
+        <li>高度なリファクタリングツール</li>
+        <li>Discord 優先サポート</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Pro Features Detail ── -->
+<section class="features">
+  <h2>Pro 機能の詳細</h2>
+  <div class="feature-list">
+
+    <div class="feature-item">
+      <div class="feature-icon">&#x1F41E;</div>
+      <h3>デバッガー <span class="badge-pro">PRO</span></h3>
+      <p>ブレークポイントの設定、ステップ実行、変数のリアルタイム監視。
+        ゲームを実行しながら TyranoScript の動作を直接確認できます。</p>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-icon">&#x1F4CA;</div>
+      <h3>フローグラフ <span class="badge-pro">PRO</span></h3>
+      <p>シナリオ間の jump / call / glink / button の遷移を自動解析し、
+        インタラクティブなフローチャートで表示。全体構造を一目で把握できます。</p>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-icon">&#x1F9EA;</div>
+      <h3>全ルートテスト <span class="badge-pro">PRO</span></h3>
+      <p>ゲーム内の全分岐ルートを自動探索。到達不能な選択肢や
+        無限ループがないかを一括チェックできます。</p>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-icon">&#x23F1;</div>
+      <h3>パフォーマンスプロファイラー <span class="badge-pro">PRO</span></h3>
+      <p>各シーンのタグ数・リソース読み込み数・トランジション回数を分析。
+        ボトルネックとなるシーンを特定し、最適化の指針を提供します。</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── How to activate ── -->
+<section class="howto">
+  <h2>ライセンスの有効化</h2>
+  <div class="steps">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Gumroad で購入</h4>
+        <p>購入完了後、ライセンスキーがメールで届きます。</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>VS Code でコマンドを実行</h4>
+        <p><code>Ctrl+Shift+P</code> を押して <code>TyranoCode: Activate License</code> を実行します。</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>ライセンスキーを入力</h4>
+        <p>Gumroad から届いたキーを入力すれば、すべての Pro 機能が解放されます。</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Footer CTA ── -->
+<section class="footer-cta">
+  <h2>TyranoScript 開発を次のレベルへ</h2>
+  <p>¥1,000 の買い切りで、すべての Pro 機能を永久に利用できます。</p>
+  <a href="https://y1uda.gumroad.com/l/tcpl" class="hero-cta">
+    Pro を購入する
+  </a>
+  <div class="hero-price" style="margin-top: 16px;">
+    質問・サポートは <a href="https://discord.gg/CxmxwAZk2P" style="color: var(--accent); text-decoration: none;">Discord サーバー</a> へ
+  </div>
+</section>
+
+<footer>
+  <p>&copy; 2024-2026 TyranoCode &mdash; <a href="https://y1uda.gumroad.com/l/tcpl">Gumroad</a> &middot; <a href="https://discord.gg/CxmxwAZk2P">Discord</a></p>
+</footer>
+
+</body>
+</html>

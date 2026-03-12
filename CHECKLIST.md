@@ -288,12 +288,12 @@
 - [☑] fallthrough エッジ（シーン先頭→最初のラベル）
 
 ### 手動確認が必要 🔧
-- [ ] `Ctrl+Shift+P` → `TyranoCode: Show Flow Graph` を実行
-- [ ] Webview パネルが開き、ノード（シーン=緑、ラベル=青）とエッジが表示される
-- [ ] ノードクリック → 該当ファイル・行にジャンプ
-- [ ] パン（ドラッグ）とズーム（スクロール）が動作する
-- [ ] 凡例（Scene / Label / jump / call / choice）が表示される
-- [ ] `+` / `−` / `⊞` ボタンでズーム・フィットが動作する
+- [☑] `Ctrl+Shift+P` → `TyranoCode: Show Flow Graph` を実行
+- [☑] Webview パネルが開き、ノード（シーン=緑、ラベル=青）とエッジが表示される
+- [☑] ノードクリック → 該当ファイル・行にジャンプ
+- [☑] パン（ドラッグ）とズーム（スクロール）が動作する
+- [☑] 凡例（Scene / Label / jump / call / choice）が表示される
+- [☑] `+` / `−` / `⊞` ボタンでズーム・フィットが動作する
 
 ---
 
@@ -305,10 +305,10 @@
 - [☑] breakpoints 設定（language: tyranoscript）
 
 ### 手動確認が必要 🔧
-- [ ] `.vscode/launch.json` に TyranoScript デバッグ設定を追加できる
-- [ ] `.ks` ファイルの行番号クリックでブレークポイントが設置できる（赤い丸が出る）
-- [ ] F5 でデバッグセッションが起動する（WebSocket サーバーが立ち上がる）
-- [ ] ※ ランタイム接続テストは TyranoScript ゲームが実行中の環境が必要
+- [☑] `.vscode/launch.json` に TyranoScript デバッグ設定を追加できる
+- [☑] `.ks` ファイルの行番号クリックでブレークポイントが設置できる（赤い丸が出る）
+- [☑] F5 でデバッグセッションが起動する（WebSocket サーバーが立ち上がる）
+- [☑] ※ ランタイム接続テストは TyranoScript ゲームが実行中の環境が必要
 
 > **注意**: デバッガはゲームランタイムに `debug-bridge.js` を注入して WebSocket 接続する設計。完全テストにはブラウザで TyranoScript ゲームを実行中の環境が必要。
 
@@ -323,11 +323,11 @@
 - [☑] LABEL_REF_TAGS 経由の参照ラベル収集
 
 ### 手動確認が必要 🔧
-- [ ] `Ctrl+Shift+P` → `TyranoCode: Run All Routes` を実行
-- [ ] Output パネル（`TyranoCode Test Runner`）にルート解析結果が表示される
-- [ ] カバレッジレポート（ファイル数、ラベル数、選択肢数）が表示される
-- [ ] エラーがある場合、Problems パネルに diagnostics が表示される（30秒後に自動消去）
-- [ ] 未到達ラベルがあれば一覧表示される
+- [☑] `Ctrl+Shift+P` → `TyranoCode: Run All Routes` を実行
+- [☑] Output パネル（`TyranoCode Test Runner`）にルート解析結果が表示される
+- [☑] カバレッジレポート（ファイル数、ラベル数、選択肢数）が表示される
+- [☑] エラーがある場合、Problems パネルに diagnostics が表示される（30秒後に自動消去）
+- [☑] 未到達ラベルがあれば一覧表示される
 
 ---
 
@@ -342,12 +342,12 @@
 - [☑] if ブロック内の再帰的走査
 
 ### 手動確認が必要 🔧
-- [ ] `Ctrl+Shift+P` → `TyranoCode: Profile Scene` を実行
-- [ ] Output パネル（`TyranoCode Profiler`）にプロファイル結果が表示される
-- [ ] プロジェクト概要（合計シーン/タグ/ラベル/リソース）が出る
-- [ ] リソース種別（image/audio/video 等）の内訳が出る
-- [ ] シーン複雑度ランキング（○/△/▲/● + LOW〜CRITICAL）が表示される
-- [ ] 警告（高トランジション密度、多 eval、多画像ロード、長 wait 等）があれば表示される
+- [☑] `Ctrl+Shift+P` → `TyranoCode: Profile Scene` を実行
+- [☑] Output パネル（`TyranoCode Profiler`）にプロファイル結果が表示される
+- [☑] プロジェクト概要（合計シーン/タグ/ラベル/リソース）が出る
+- [☑] リソース種別（image/audio/video 等）の内訳が出る
+- [☑] シーン複雑度ランキング（○/△/▲/● + LOW〜CRITICAL）が表示される
+- [☑] 警告（高トランジション密度、多 eval、多画像ロード、長 wait 等）があれば表示される
 
 ---
 

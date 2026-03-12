@@ -5,15 +5,15 @@
  * PRO FEATURE — requires valid license key.
  *
  * How it works:
- * 1. Parses all scenario files to build a complete route graph
- * 2. Identifies all choice points (buttons, glinks, if branches)
- * 3. Generates test paths that cover all reachable routes
- * 4. Walks each path statically to verify targets exist and resources are valid
+ * 1. Walks the scenario flow graph starting from first.ks
+ * 2. Follows [jump], [call], [button], [glink] to trace reachable paths
+ * 3. At choice points (button/glink before [s]), branches into separate routes
+ * 4. Checks each route for undefined labels, missing files, and integrity errors
  * 5. Reports coverage, errors, and unreachable code
  */
 
 import * as vscode from 'vscode';
-import { ProjectIndex, ScenarioNode, TagNode, LABEL_REF_TAGS } from '../parser/types';
+import { ProjectIndex, ScenarioNode, TagNode, LabelNode, LABEL_REF_TAGS } from '../parser/types';
 import { localize } from '../language/i18n';
 
 export interface TestRoute {
@@ -24,8 +24,9 @@ export interface TestRoute {
 export interface TestStep {
   file: string;
   label: string | null;
-  action: 'choice' | 'auto' | 'skip';
-  choiceIndex?: number;
+  line: number;
+  action: 'jump' | 'call' | 'choice' | 'start';
+  tag?: string;
   choiceText?: string;
 }
 
@@ -56,18 +57,16 @@ export interface TestCoverage {
   unreachableLabels: string[];
 }
 
-interface ChoicePoint {
+interface WalkState {
   file: string;
-  label: string | null;
-  line: number;
-  options: ChoiceOption[];
+  nodeIndex: number;
+  steps: TestStep[];
+  visited: Set<string>;  // "file:nodeIndex" to detect loops
+  callStack: string[];   // return targets for [call]
 }
 
-interface ChoiceOption {
-  text: string;
-  targetFile: string;
-  targetLabel: string | null;
-}
+const MAX_ROUTES = 200;
+const MAX_WALK_DEPTH = 1000;
 
 export class TestRunner {
   private results: TestResult[] = [];
@@ -79,59 +78,325 @@ export class TestRunner {
   }
 
   /**
-   * Discover all possible routes through the game.
+   * Discover all possible routes by walking the flow graph.
    */
   discoverRoutes(): TestRoute[] {
     const index = this.getIndex();
     if (!index) return [];
 
     const routes: TestRoute[] = [];
-    const choicePoints = this.findChoicePoints(index);
+    const entryFile = this.findEntryFile(index);
+    if (!entryFile) return [];
 
-    const MAX_ROUTES = 500;
+    // DFS walk through the scenario graph
+    const initialState: WalkState = {
+      file: entryFile,
+      nodeIndex: 0,
+      steps: [{ file: entryFile, label: null, line: 1, action: 'start' }],
+      visited: new Set(),
+      callStack: [],
+    };
 
-    if (choicePoints.length === 0) {
-      routes.push({
-        name: localize('Main Route (no choices)', 'メインルート (選択肢なし)'),
-        steps: [{ file: 'data/scenario/first.ks', label: null, action: 'auto' }],
-      });
-      return routes;
-    }
+    const stack: WalkState[] = [initialState];
 
-    // BFS through choice tree
-    const queue: { steps: TestStep[]; nextChoiceIdx: number }[] = [
-      { steps: [{ file: 'data/scenario/first.ks', label: null, action: 'auto' }], nextChoiceIdx: 0 },
-    ];
+    while (stack.length > 0 && routes.length < MAX_ROUTES) {
+      const state = stack.pop()!;
+      const result = this.walkUntilBranch(state, index);
 
-    while (queue.length > 0 && routes.length < MAX_ROUTES) {
-      const current = queue.shift()!;
-
-      if (current.nextChoiceIdx >= choicePoints.length) {
+      if (result.type === 'end' || result.type === 'loop') {
+        // Route completed (loop = returned to title screen, still a valid route)
         routes.push({
           name: `${localize('Route', 'ルート')} ${routes.length + 1}`,
-          steps: current.steps,
+          steps: result.steps,
         });
-        continue;
+      } else if (result.type === 'choice') {
+        // Branch: push each option as a new walk state
+        for (const branch of result.branches) {
+          if (routes.length + stack.length >= MAX_ROUTES) break;
+          stack.push(branch);
+        }
       }
+    }
 
-      const choice = choicePoints[current.nextChoiceIdx];
-      for (let i = 0; i < choice.options.length; i++) {
-        const opt = choice.options[i];
-        const step: TestStep = {
-          file: opt.targetFile,
-          label: opt.targetLabel,
-          action: 'choice',
-          choiceIndex: i,
-          choiceText: opt.text,
-        };
-        queue.push({
-          steps: [...current.steps, step],
-          nextChoiceIdx: current.nextChoiceIdx + 1,
-        });
-      }
+    if (routes.length === 0) {
+      routes.push({
+        name: localize('Main Route (no branches)', 'メインルート (分岐なし)'),
+        steps: [{ file: entryFile, label: null, line: 1, action: 'start' }],
+      });
     }
 
     return routes;
+  }
+
+  /**
+   * Walk the scenario nodes until we hit a branch point, end, or loop.
+   */
+  private walkUntilBranch(
+    state: WalkState,
+    index: ProjectIndex,
+  ): { type: 'end'; steps: TestStep[] }
+    | { type: 'choice'; branches: WalkState[] }
+    | { type: 'loop'; steps: TestStep[] } {
+
+    let { file, nodeIndex } = state;
+    const steps = [...state.steps];
+    const visited = new Set(state.visited);
+    const callStack = [...state.callStack];
+    let depth = 0;
+
+    while (depth++ < MAX_WALK_DEPTH) {
+      let scenario = index.scenarios.get(file);
+      if (!scenario) {
+        // Try bare filename lookup
+        const bareFile = file.replace(/^data\/scenario\//, '');
+        const found = this.findScenarioByName(bareFile, index);
+        if (!found) {
+          return { type: 'end', steps };
+        }
+        file = found;
+        scenario = index.scenarios.get(file)!;
+      }
+      const nodes = scenario.nodes;
+
+      if (nodeIndex >= nodes.length) {
+        // End of file
+        return { type: 'end', steps };
+      }
+
+      // Loop detection
+      const posKey = `${file}:${nodeIndex}`;
+      if (visited.has(posKey)) {
+        return { type: 'loop', steps };
+      }
+      visited.add(posKey);
+
+      const node = nodes[nodeIndex];
+
+      if (node.type === 'label') {
+        // Track label visit in steps
+      }
+
+      if (node.type === 'tag') {
+        const name = node.name;
+
+        // [jump] — transfer control
+        if (name === 'jump') {
+          const target = this.resolveTarget(node, file, index);
+          if (!target) {
+            nodeIndex++;
+            continue;
+          }
+          steps.push({
+            file: target.file,
+            label: target.label,
+            line: node.range.start.line + 1,
+            action: 'jump',
+            tag: 'jump',
+          });
+          file = target.file;
+          nodeIndex = target.nodeIndex;
+          continue;
+        }
+
+        // [call] — push return address, jump to target
+        if (name === 'call') {
+          const target = this.resolveTarget(node, file, index);
+          if (!target) {
+            nodeIndex++;
+            continue;
+          }
+          callStack.push(`${file}:${nodeIndex + 1}`);
+          steps.push({
+            file: target.file,
+            label: target.label,
+            line: node.range.start.line + 1,
+            action: 'call',
+            tag: 'call',
+          });
+          file = target.file;
+          nodeIndex = target.nodeIndex;
+          continue;
+        }
+
+        // [return] — pop call stack
+        if (name === 'return') {
+          const returnTarget = callStack.pop();
+          if (!returnTarget) {
+            return { type: 'end', steps };
+          }
+          const [retFile, retIdx] = returnTarget.split(':');
+          file = retFile;
+          nodeIndex = parseInt(retIdx, 10);
+          continue;
+        }
+
+        // [button] / [glink] — collect choices until [s]
+        if (name === 'button' || name === 'glink') {
+          const choices = this.collectChoices(nodes, nodeIndex);
+          if (choices.length > 0) {
+            const branches: WalkState[] = [];
+            for (const choice of choices) {
+              const target = this.resolveTarget(choice.node, file, index);
+              if (!target) continue;
+
+              const textAttr = choice.node.attributes.find(a => a.name === 'text');
+              const choiceText = textAttr?.value ?? `(${choice.node.name})`;
+
+              const branchSteps = [...steps, {
+                file: target.file,
+                label: target.label,
+                line: choice.node.range.start.line + 1,
+                action: 'choice' as const,
+                tag: choice.node.name,
+                choiceText,
+              }];
+
+              branches.push({
+                file: target.file,
+                nodeIndex: target.nodeIndex,
+                steps: branchSteps,
+                visited: new Set(visited),
+                callStack: [...callStack],
+              });
+            }
+
+            if (branches.length > 0) {
+              return { type: 'choice', branches };
+            }
+            // If no valid targets, skip past the [s]
+            nodeIndex = this.findNextAfterStop(nodes, nodeIndex);
+            continue;
+          }
+        }
+
+        // [s] — stop (end of route if not preceded by choices)
+        if (name === 's') {
+          return { type: 'end', steps };
+        }
+
+        // [end] — end
+        if (name === 'end') {
+          return { type: 'end', steps };
+        }
+      }
+
+      nodeIndex++;
+    }
+
+    // Max depth reached
+    return { type: 'end', steps };
+  }
+
+  /**
+   * Collect consecutive button/glink nodes (a choice group).
+   * Stops at [s] or a non-button/glink/text/comment node.
+   */
+  private collectChoices(nodes: ScenarioNode[], startIdx: number): { node: TagNode; index: number }[] {
+    const choices: { node: TagNode; index: number }[] = [];
+    for (let i = startIdx; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (n.type === 'tag' && (n.name === 'button' || n.name === 'glink')) {
+        choices.push({ node: n, index: i });
+      } else if (n.type === 'tag' && n.name === 's') {
+        break;
+      } else if (n.type === 'text' || n.type === 'comment') {
+        // Skip text/comments between choices
+        continue;
+      } else if (n.type === 'tag' && (n.name === 'l' || n.name === 'p' || n.name === 'r' ||
+        n.name === 'cm' || n.name === 'ct' || n.name === 'er' ||
+        n.name === 'locate' || n.name === 'font' || n.name === 'resetfont' ||
+        n.name === 'position' || n.name === 'current' || n.name === 'layopt')) {
+        // Skip layout/display tags that can appear between choices
+        continue;
+      } else {
+        break;
+      }
+    }
+    return choices;
+  }
+
+  /**
+   * Find the node index after the next [s] tag.
+   */
+  private findNextAfterStop(nodes: ScenarioNode[], startIdx: number): number {
+    for (let i = startIdx; i < nodes.length; i++) {
+      if (nodes[i].type === 'tag' && (nodes[i] as TagNode).name === 's') {
+        return i + 1;
+      }
+    }
+    return nodes.length;
+  }
+
+  /**
+   * Resolve a jump/call/button/glink target to a file + node index.
+   */
+  private resolveTarget(
+    node: TagNode,
+    currentFile: string,
+    index: ProjectIndex,
+  ): { file: string; label: string | null; nodeIndex: number } | null {
+    const storageAttr = node.attributes.find(a => a.name === 'storage');
+    const targetAttr = node.attributes.find(a => a.name === 'target');
+
+    // Dynamic targets (& prefix) — can't resolve statically
+    if (storageAttr?.value?.startsWith('&') || targetAttr?.value?.startsWith('&')) {
+      return null;
+    }
+
+    // Role-based buttons (load, save, etc.) — not navigation
+    const roleAttr = node.attributes.find(a => a.name === 'role');
+    if (roleAttr?.value) return null;
+
+    let targetFile = currentFile;
+    if (storageAttr?.value) {
+      targetFile = this.findScenarioByName(storageAttr.value, index) ?? storageAttr.value;
+    }
+
+    const targetLabel = targetAttr?.value?.replace(/^\*/, '') ?? null;
+
+    const scenario = index.scenarios.get(targetFile);
+    if (!scenario) return null;
+
+    let nodeIndex = 0;
+    if (targetLabel) {
+      // Find the label node index
+      for (let i = 0; i < scenario.nodes.length; i++) {
+        const n = scenario.nodes[i];
+        if (n.type === 'label' && n.name === targetLabel) {
+          nodeIndex = i;
+          break;
+        }
+      }
+    }
+
+    return { file: targetFile, label: targetLabel, nodeIndex };
+  }
+
+  /**
+   * Find a scenario file by bare filename in the index.
+   */
+  private findScenarioByName(name: string, index: ProjectIndex): string | null {
+    // Direct match
+    if (index.scenarios.has(name)) return name;
+
+    // Try with data/scenario/ prefix
+    const withPrefix = `data/scenario/${name}`;
+    if (index.scenarios.has(withPrefix)) return withPrefix;
+
+    // Search by basename
+    for (const key of index.scenarios.keys()) {
+      const base = key.replace(/\\/g, '/').split('/').pop();
+      if (base === name) return key;
+    }
+
+    return null;
+  }
+
+  /**
+   * Find the entry file (first.ks).
+   */
+  private findEntryFile(index: ProjectIndex): string | null {
+    return this.findScenarioByName('first.ks', index);
   }
 
   /**
@@ -151,7 +416,19 @@ export class TestRunner {
       };
     }
 
-    const routes = this.discoverRoutes();
+    let routes: TestRoute[];
+    try {
+      routes = this.discoverRoutes();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.stack || e.message : String(e);
+      this.outputChannel.show();
+      this.outputChannel.appendLine(`=== TyranoCode Auto-Test ===\n`);
+      this.outputChannel.appendLine(`Error discovering routes: ${msg}`);
+      return {
+        totalFiles: 0, visitedFiles: 0, totalLabels: 0, visitedLabels: 0,
+        totalChoices: 0, testedChoices: 0, unreachableLabels: [],
+      };
+    }
     this.running = true;
     this.results = [];
 
@@ -159,8 +436,8 @@ export class TestRunner {
     this.outputChannel.clear();
     this.outputChannel.appendLine(`=== TyranoCode Auto-Test ===\n`);
     this.outputChannel.appendLine(localize(
-      `Analyzing ${routes.length} routes...`,
-      `${routes.length} ルートを解析中...`,
+      `Discovered ${routes.length} routes.`,
+      `${routes.length} ルートを検出しました。`,
     ));
     this.outputChannel.appendLine('');
 
@@ -168,6 +445,7 @@ export class TestRunner {
     const allVisitedLabels = new Set<string>();
     let passCount = 0;
     let failCount = 0;
+    let choicePointCount = 0;
 
     for (const route of routes) {
       if (!this.running) break;
@@ -181,7 +459,13 @@ export class TestRunner {
       const icon = result.status === 'pass' ? '✓' : '✗';
       if (result.status === 'pass') passCount++; else failCount++;
 
-      this.outputChannel.appendLine(`  ${icon} ${route.name}`);
+      // Build route description from choices made
+      const choiceSteps = route.steps.filter(s => s.action === 'choice');
+      choicePointCount = Math.max(choicePointCount, choiceSteps.length);
+      const choiceDesc = choiceSteps.map(s => s.choiceText ?? '?').join(' → ');
+      const routeDesc = choiceDesc || localize('(linear)', '(一本道)');
+
+      this.outputChannel.appendLine(`  ${icon} ${route.name}: ${routeDesc}`);
 
       for (const error of result.errors) {
         const severity = error.severity === 'error' ? 'ERROR' : 'WARN';
@@ -192,7 +476,6 @@ export class TestRunner {
     // Coverage report
     const totalFiles = index.scenarios.size;
     const totalLabels = [...index.globalLabels.values()].reduce((sum, arr) => sum + arr.length, 0);
-    const choicePoints = this.findChoicePoints(index);
     const unreachableLabels = this.findUnreachableLabels(allVisitedLabels, index);
 
     const coverage: TestCoverage = {
@@ -200,8 +483,8 @@ export class TestRunner {
       visitedFiles: allVisitedFiles.size,
       totalLabels,
       visitedLabels: allVisitedLabels.size,
-      totalChoices: choicePoints.length,
-      testedChoices: choicePoints.length, // all combinations generated
+      totalChoices: choicePointCount,
+      testedChoices: choicePointCount,
       unreachableLabels,
     };
 
@@ -210,7 +493,6 @@ export class TestRunner {
     this.outputChannel.appendLine(`  ${localize('Routes', 'ルート')}: ${passCount} ${localize('passed', '成功')} / ${failCount} ${localize('failed', '失敗')}`);
     this.outputChannel.appendLine(`  ${localize('Files', 'ファイル')}: ${coverage.visitedFiles}/${coverage.totalFiles}`);
     this.outputChannel.appendLine(`  ${localize('Labels', 'ラベル')}: ${coverage.visitedLabels}/${coverage.totalLabels}`);
-    this.outputChannel.appendLine(`  ${localize('Choice points', '選択肢')}: ${coverage.totalChoices}`);
 
     if (unreachableLabels.length > 0) {
       this.outputChannel.appendLine('');
@@ -234,7 +516,7 @@ export class TestRunner {
   // ── Route analysis ──
 
   /**
-   * Statically walk a route and check for errors.
+   * Analyze a discovered route for errors.
    */
   private analyzeRoute(route: TestRoute, index: ProjectIndex): TestResult {
     const start = Date.now();
@@ -243,7 +525,6 @@ export class TestRunner {
     const errors: TestError[] = [];
 
     for (const step of route.steps) {
-      // Track visited files
       if (!visitedFiles.includes(step.file)) {
         visitedFiles.push(step.file);
       }
@@ -251,51 +532,43 @@ export class TestRunner {
         visitedLabels.push(step.label);
       }
 
-      // Verify target exists
+      // Verify label exists
       if (step.label) {
         const labelEntries = index.globalLabels.get(step.label);
         if (!labelEntries || labelEntries.length === 0) {
           errors.push({
             file: step.file,
-            line: 0,
+            line: step.line,
             message: localize(
               `Undefined label: *${step.label}`,
               `未定義のラベル: *${step.label}`,
             ),
             severity: 'error',
-            tag: 'jump',
+            tag: step.tag,
           });
         }
       }
 
-      // Verify scenario file exists in index
-      if (step.file) {
-        const scenario = index.scenarios.get(step.file);
-        if (!scenario) {
-          // Check with different path formats
-          const altPath = step.file.replace(/^data\/scenario\//, '');
-          const found = [...index.scenarios.keys()].some(
-            k => k === altPath || k.endsWith('/' + altPath) || k.endsWith('\\' + altPath),
-          );
-          if (!found) {
-            errors.push({
-              file: step.file,
-              line: 0,
-              message: localize(
-                `Scenario file not found: ${step.file}`,
-                `シナリオファイルが見つかりません: ${step.file}`,
-              ),
-              severity: 'warning',
-            });
-          }
+      // Verify file exists
+      if (step.file && !index.scenarios.has(step.file)) {
+        const found = this.findScenarioByName(step.file, index);
+        if (!found) {
+          errors.push({
+            file: step.file,
+            line: step.line,
+            message: localize(
+              `Scenario file not found: ${step.file}`,
+              `シナリオファイルが見つかりません: ${step.file}`,
+            ),
+            severity: 'warning',
+          });
         }
       }
     }
 
-    // Walk the starting scenario to check for static errors
-    const startFile = route.steps[0]?.file;
-    if (startFile) {
-      this.checkScenarioIntegrity(startFile, index, errors, visitedFiles, visitedLabels);
+    // Walk all visited files for integrity checks
+    for (const file of visitedFiles) {
+      this.checkScenarioIntegrity(file, index, errors, visitedFiles, visitedLabels);
     }
 
     return {
@@ -360,7 +633,7 @@ export class TestRunner {
           }
         }
 
-        if (storageAttr?.value) {
+        if (storageAttr?.value && !storageAttr.value.startsWith('&')) {
           const targetFile = storageAttr.value;
           if (!visitedFiles.includes(targetFile)) {
             visitedFiles.push(targetFile);
@@ -384,75 +657,17 @@ export class TestRunner {
     }
   }
 
-  // ── Choice point discovery ──
-
-  private findChoicePoints(index: ProjectIndex): ChoicePoint[] {
-    const points: ChoicePoint[] = [];
-
-    for (const [file, scenario] of index.scenarios) {
-      let currentLabel: string | null = null;
-      const pendingChoices: TagNode[] = [];
-
-      for (const node of scenario.nodes) {
-        if (node.type === 'label') {
-          if (pendingChoices.length > 0) {
-            points.push(this.buildChoicePoint(file, currentLabel, pendingChoices));
-            pendingChoices.length = 0;
-          }
-          currentLabel = node.name;
-        }
-
-        if (node.type === 'tag' && (node.name === 'button' || node.name === 'glink')) {
-          pendingChoices.push(node);
-        }
-
-        // [s] (stop) after choices means this is a choice point
-        if (node.type === 'tag' && node.name === 's' && pendingChoices.length > 0) {
-          points.push(this.buildChoicePoint(file, currentLabel, pendingChoices));
-          pendingChoices.length = 0;
-        }
-      }
-
-      // Flush remaining choices at end of file
-      if (pendingChoices.length > 0) {
-        points.push(this.buildChoicePoint(file, currentLabel, pendingChoices));
-      }
-    }
-
-    return points;
-  }
-
-  private buildChoicePoint(file: string, label: string | null, choices: TagNode[]): ChoicePoint {
-    return {
-      file,
-      label,
-      line: choices[0].range.start.line,
-      options: choices.map(c => {
-        const textAttr = c.attributes.find(a => a.name === 'text');
-        const targetAttr = c.attributes.find(a => a.name === 'target');
-        const storageAttr = c.attributes.find(a => a.name === 'storage');
-        return {
-          text: textAttr?.value ?? `(${c.name})`,
-          targetFile: storageAttr?.value ?? file,
-          targetLabel: targetAttr?.value?.replace(/^\*/, '') ?? null,
-        };
-      }),
-    };
-  }
-
   // ── Unreachable labels ──
 
   private findUnreachableLabels(visited: Set<string>, index: ProjectIndex): string[] {
     const unreachable: string[] = [];
 
-    // Collect all labels that are targets of jump/call
     const referencedLabels = new Set<string>();
     for (const [, scenario] of index.scenarios) {
       this.collectReferencedLabels(scenario.nodes, referencedLabels);
     }
 
     for (const [name, entries] of index.globalLabels) {
-      // Skip "start" label — it's the entry point
       if (name === 'start') continue;
 
       if (!visited.has(name) && !referencedLabels.has(name)) {
@@ -485,9 +700,6 @@ export class TestRunner {
 
   // ── Diagnostics ──
 
-  /**
-   * Report test errors as VS Code diagnostics.
-   */
   private reportDiagnostics(): void {
     const diagnosticCollection = vscode.languages.createDiagnosticCollection('tyranocode-test');
     const diagnosticMap = new Map<string, vscode.Diagnostic[]>();
@@ -518,7 +730,6 @@ export class TestRunner {
       diagnosticCollection.set(vscode.Uri.parse(uriStr), diags);
     }
 
-    // Clear after 30 seconds
     setTimeout(() => diagnosticCollection.dispose(), 30000);
   }
 

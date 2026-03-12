@@ -106,12 +106,7 @@
           "default": true,
           "description": "%config.diagnostics.unreachableCode%"
         },
-        "tyranodev.devMode": {
-          "type": "boolean",
-          "default": false,
-          "description": "Developer mode: bypass license check and unlock all Pro features."
-        },
-        "tyranodev.license.key": {
+"tyranodev.license.key": {
           "type": "string",
           "default": "",
           "description": "%config.license.key.description%",
@@ -213,6 +208,11 @@
                 "type": "number",
                 "description": "%debugger.port.description%",
                 "default": 9871
+              },
+              "httpPort": {
+                "type": "number",
+                "description": "HTTP server port for serving the game.",
+                "default": 3871
               }
             }
           }
@@ -233,7 +233,24 @@
         ]
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tyranocode",
+          "title": "TyranoCode",
+          "icon": "$(game)"
+        }
+      ]
+    },
     "views": {
+      "tyranocode": [
+        {
+          "type": "webview",
+          "id": "tyranodev.dashboard",
+          "name": "%view.dashboard%",
+          "when": "tyranodev.projectDetected"
+        }
+      ],
       "debug": [
         {
           "id": "tyranodev.variableWatch",
@@ -257,7 +274,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && node -e \"require('fs').copyFileSync('src/debugger/debug-bridge.js','out/debugger/debug-bridge.js')\"",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",

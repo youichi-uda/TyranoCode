@@ -47,6 +47,7 @@ import { registerExtendedTags } from './language/tag-database-ext';
 import { TestRunner } from './test-runner/test-runner';
 import { TyranoDebugSession } from './debugger/debug-adapter';
 import { SceneProfiler } from './profiler/profiler';
+import { DashboardProvider } from './dashboard/dashboard-provider';
 
 const LANGUAGE_ID = 'tyranoscript';
 
@@ -61,7 +62,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Core services ──
   const licenseManager = new LicenseManager();
-  licenseManager.initialize();
+  licenseManager.initialize(context);
 
   const indexer = new ProjectIndexer();
   const getIndex = () => indexer.getIndex();
@@ -79,6 +80,28 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const diagnostics = new TyranoDiagnosticsProvider(getIndex, getDiagConfig);
+
+  // ── Dashboard (sidebar WebView) ──
+  const dashboard = new DashboardProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(DashboardProvider.viewType, dashboard),
+  );
+
+  // Update dashboard when license or index changes
+  const updateDashboardStats = () => {
+    const idx = indexer.getIndex();
+    dashboard.updateStats(
+      idx.scenarios.size,
+      [...idx.globalLabels.values()].reduce((s, a) => s + a.length, 0),
+      idx.globalMacros.size,
+      idx.variables.size,
+    );
+    variableTree.refresh();
+  };
+  dashboard.updateLicense(licenseManager.isProLicensed);
+  licenseManager.onDidChange((isValid) => {
+    dashboard.updateLicense(isValid);
+  });
 
   // ── FREE: Language features ──
 
@@ -204,7 +227,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.languages.registerRenameProvider(
       { language: LANGUAGE_ID },
-      new TyranoRenameProvider(getIndex),
+      new TyranoRenameProvider(getIndex, licenseManager),
     ),
   );
 
@@ -225,7 +248,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // Variable tracker tree view
-  registerVariableTracker(context, getIndex);
+  const variableTree = registerVariableTracker(context, getIndex);
 
   // Scene preview
   registerPreview(context, getIndex);
@@ -237,6 +260,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (document.languageId !== LANGUAGE_ID) return;
     indexer.indexDocument(document);
     diagnostics.analyzeDocument(document);
+    updateDashboardStats();
   };
 
   // Analyze open documents on activation
@@ -277,6 +301,7 @@ export function activate(context: vscode.ExtensionContext): void {
         { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('TyranoCode: Indexing project...') },
         async () => {
           await indexer.indexWorkspace();
+          updateDashboardStats();
           const idx = indexer.getIndex();
           vscode.window.showInformationMessage(
             vscode.l10n.t(
@@ -338,11 +363,44 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // ── PRO: Debugger ──
+  // Gate at resolveDebugConfiguration so the session is cleanly cancelled
+  // (returning undefined) instead of throwing in the descriptor factory.
+  context.subscriptions.push(
+    vscode.debug.registerDebugConfigurationProvider('tyranoscript', {
+      async resolveDebugConfiguration(
+        _folder: vscode.WorkspaceFolder | undefined,
+        config: vscode.DebugConfiguration,
+        _token?: vscode.CancellationToken,
+      ): Promise<vscode.DebugConfiguration | undefined> {
+        if (!licenseManager.isProLicensed) {
+          await licenseManager.requirePro('debugger');
+          if (!licenseManager.isProLicensed) return undefined;
+        }
+        return config;
+      },
+    }),
+  );
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory('tyranoscript', {
       createDebugAdapterDescriptor(_session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
         return new vscode.DebugAdapterInlineImplementation(new TyranoDebugSession());
       },
+    }),
+  );
+
+  // Open browser when debug session starts (skip if bridge already connected from existing tab)
+  context.subscriptions.push(
+    vscode.debug.onDidStartDebugSession(session => {
+      if (session.type !== 'tyranoscript') return;
+      const config = session.configuration;
+      const httpPort = config.httpPort || 3871;
+      const gameUrl = `http://localhost:${httpPort}/`;
+      // Wait briefly — if an existing game tab reconnects its bridge, skip opening a new tab
+      setTimeout(() => {
+        if (!TyranoDebugSession.bridgeConnected) {
+          vscode.env.openExternal(vscode.Uri.parse(gameUrl));
+        }
+      }, 2000);
     }),
   );
 
@@ -376,11 +434,10 @@ export function activate(context: vscode.ExtensionContext): void {
     { dispose: () => profiler.dispose() },
   );
 
-  // ── PRO: Refactoring ──
+  // ── PRO: Refactoring (triggers the built-in rename at cursor) ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('tyranodev.renameSymbol', async () => {
-      if (!(await licenseManager.requirePro('refactoring'))) return;
-      vscode.window.showInformationMessage(vscode.l10n.t('TyranoCode Rename: Coming soon in next release.'));
+    vscode.commands.registerCommand('tyranodev.renameSymbol', () => {
+      vscode.commands.executeCommand('editor.action.rename');
     }),
   );
 
@@ -414,7 +471,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // ── Initial workspace index ──
-  indexer.indexWorkspace();
+  indexer.indexWorkspace().then(() => updateDashboardStats());
 
   // ── Status bar ──
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);

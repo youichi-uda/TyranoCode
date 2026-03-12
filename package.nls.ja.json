@@ -33,6 +33,7 @@
   "command.refreshVariables": "TyranoCode: 変数を更新",
   "command.previewScene": "TyranoCode: シーンプレビュー",
 
+  "view.dashboard": "ダッシュボード",
   "view.variableWatch": "TyranoScript 変数",
   "view.tagTracker": "タグ実行トラッカー"
 }

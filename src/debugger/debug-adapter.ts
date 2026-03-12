@@ -3,10 +3,12 @@
  * Implements VS Code Debug Adapter Protocol (DAP) for TyranoScript.
  *
  * Architecture:
- * 1. Starts a WebSocket server on the configured port
- * 2. The debug bridge (injected into the game runtime) connects via WebSocket
- * 3. Bridge intercepts tag execution and communicates state
- * 4. This adapter translates between DAP and the bridge protocol
+ * 1. Starts an HTTP server to serve the game (with debug bridge auto-injected)
+ * 2. Opens a browser to play/test the game
+ * 3. Starts a WebSocket server for debug communication
+ * 4. The debug bridge (auto-injected) connects via WebSocket
+ * 5. Bridge intercepts tag execution and communicates state
+ * 6. This adapter translates between DAP and the bridge protocol
  *
  * PRO FEATURE — requires valid license key.
  */
@@ -15,6 +17,7 @@ import {
   LoggingDebugSession,
   InitializedEvent,
   StoppedEvent,
+  ContinuedEvent,
   OutputEvent,
   TerminatedEvent,
   Thread,
@@ -25,12 +28,16 @@ import {
 } from '@vscode/debugadapter';
 import { DebugProtocol } from '@vscode/debugprotocol';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 
 interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
   projectRoot: string;
   scene: string;
   port: number;
+  httpPort: number;
+  browser: 'external' | 'simple-browser';
 }
 
 interface BridgeMessage {
@@ -51,17 +58,30 @@ interface BridgeState {
   };
 }
 
+interface BreakpointInfo {
+  line: number;
+  condition?: string;
+  hitCondition?: string;
+  logMessage?: string;
+}
+
 const THREAD_ID = 1;
 
 export class TyranoDebugSession extends LoggingDebugSession {
+  /** Set to true when the bridge connects — checked by extension.ts to skip browser open */
+  public static bridgeConnected = false;
+
   private wss: WebSocketServer | null = null;
+  private httpServer: http.Server | null = null;
   private bridgeSocket: WebSocket | null = null;
+  private bridgeConnectedOnce = false;
   private bridgeState: BridgeState | null = null;
   private projectRoot: string = '';
   private nextBreakpointId: number = 1;
-  private pendingBreakpoints: Map<string, number[]> = new Map();
+  private pendingBreakpoints: Map<string, BreakpointInfo[]> = new Map();
   private pendingEvals: Map<number, (result: { value: string; type: string }) => void> = new Map();
   private nextEvalId: number = 1;
+  private exceptionBreakOnIscript: boolean = true;
 
   constructor() {
     super('tyranoscript-debug.log');
@@ -76,12 +96,24 @@ export class TyranoDebugSession extends LoggingDebugSession {
     response.body = response.body ?? {};
     response.body.supportsConfigurationDoneRequest = true;
     response.body.supportsFunctionBreakpoints = false;
-    response.body.supportsConditionalBreakpoints = false;
+    response.body.supportsConditionalBreakpoints = true;
+    response.body.supportsHitConditionalBreakpoints = true;
+    response.body.supportsLogPoints = true;
     response.body.supportsEvaluateForHovers = true;
     response.body.supportsStepBack = false;
     response.body.supportsSetVariable = true;
-    response.body.supportsRestartRequest = false;
+    response.body.supportsRestartRequest = true;
     response.body.supportsModulesRequest = false;
+    response.body.supportsTerminateRequest = true;
+    response.body.supportsExceptionInfoRequest = true;
+    response.body.supportsExceptionOptions = true;
+    response.body.exceptionBreakpointFilters = [
+      {
+        filter: 'iscript',
+        label: 'Exceptions in [iscript] blocks',
+        default: true,
+      },
+    ];
 
     this.sendResponse(response);
     this.sendEvent(new InitializedEvent());
@@ -92,16 +124,17 @@ export class TyranoDebugSession extends LoggingDebugSession {
     args: LaunchRequestArguments,
   ): Promise<void> {
     this.projectRoot = args.projectRoot;
-    const port = args.port || 9871;
+    const wsPort = args.port || 9871;
+    const httpPort = args.httpPort || 3871;
 
+    // ── 1. Start WebSocket server ──
     this.sendEvent(new OutputEvent(
-      `TyranoCode Debugger: Starting WebSocket server on port ${port}...\n`,
+      `TyranoCode Debugger: Starting on ports WS:${wsPort} HTTP:${httpPort}...\n`,
       'console',
     ));
 
-    // Start WebSocket server
     try {
-      this.wss = new WebSocketServer({ port });
+      this.wss = new WebSocketServer({ port: wsPort });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       this.sendEvent(new OutputEvent(`Failed to start WebSocket server: ${msg}\n`, 'stderr'));
@@ -111,10 +144,13 @@ export class TyranoDebugSession extends LoggingDebugSession {
     }
 
     this.wss.on('connection', (socket) => {
+      // Reject duplicate connections — only one game tab allowed
+      if (this.bridgeSocket && this.bridgeSocket.readyState === WebSocket.OPEN) {
+        try { socket.close(); } catch { /* ignore */ }
+        return;
+      }
       this.bridgeSocket = socket;
-      this.sendEvent(new OutputEvent('Debug bridge connected.\n', 'console'));
 
-      // Send pending breakpoints
       this.syncBreakpoints();
 
       socket.on('message', (data) => {
@@ -127,19 +163,124 @@ export class TyranoDebugSession extends LoggingDebugSession {
       });
 
       socket.on('close', () => {
-        this.bridgeSocket = null;
-        this.sendEvent(new OutputEvent('Debug bridge disconnected.\n', 'console'));
-        this.sendEvent(new TerminatedEvent());
+        // Only clear if this is still the active socket
+        if (this.bridgeSocket === socket) {
+          this.bridgeSocket = null;
+        }
       });
     });
 
-    this.sendEvent(new OutputEvent(
-      `Waiting for debug bridge connection...\n` +
-      `Add the following to your game's index.html:\n` +
-      `  <script>window.__TYRANOCODE_DEBUG_PORT__=${port};</script>\n` +
-      `  <script src="tyranocode-debug-bridge.js"></script>\n`,
-      'console',
-    ));
+    // ── 2. Start HTTP server with auto-injected debug bridge ──
+    const bridgePath = path.join(path.dirname(__dirname), 'debugger', 'debug-bridge.js');
+    let bridgeScript = '';
+    try {
+      bridgeScript = fs.readFileSync(bridgePath, 'utf-8');
+    } catch {
+      // Try alternative path (when running from out/)
+      const altPath = path.join(__dirname, 'debug-bridge.js');
+      try {
+        bridgeScript = fs.readFileSync(altPath, 'utf-8');
+      } catch {
+        this.sendEvent(new OutputEvent(
+          `Warning: debug-bridge.js not found at ${bridgePath} or ${altPath}\n`, 'stderr',
+        ));
+      }
+    }
+
+    const mimeTypes: Record<string, string> = {
+      '.html': 'text/html',
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.webp': 'image/webp',
+      '.mp3': 'audio/mpeg',
+      '.ogg': 'audio/ogg',
+      '.wav': 'audio/wav',
+      '.mp4': 'video/mp4',
+      '.webm': 'video/webm',
+      '.woff': 'font/woff',
+      '.woff2': 'font/woff2',
+      '.ttf': 'font/ttf',
+      '.otf': 'font/otf',
+      '.ks': 'text/plain',
+    };
+
+    this.httpServer = http.createServer((req, res) => {
+      const url = new URL(req.url || '/', `http://localhost:${httpPort}`);
+      let filePath = path.join(this.projectRoot, decodeURIComponent(url.pathname));
+
+      // Default to index.html
+      if (url.pathname === '/' || url.pathname === '') {
+        filePath = path.join(this.projectRoot, 'index.html');
+      }
+
+      // Security: prevent path traversal
+      if (!filePath.startsWith(this.projectRoot)) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          res.end('Not Found: ' + url.pathname);
+          return;
+        }
+
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+        // Auto-inject debug bridge into index.html
+        if (filePath.endsWith('index.html') && bridgeScript) {
+          let html = data.toString('utf-8');
+          const injection = `
+<!-- TyranoCode Debug Bridge (auto-injected) -->
+<script>window.__TYRANOCODE_DEBUG_PORT__=${wsPort};</script>
+<script>${bridgeScript}</script>
+`;
+          html = html.replace('</body>', injection + '</body>');
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store',
+          });
+          res.end(html);
+          return;
+        }
+
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Cache-Control': 'no-store',
+        });
+        res.end(data);
+      });
+    });
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        this.httpServer!.listen(httpPort, () => resolve());
+        this.httpServer!.on('error', reject);
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.sendEvent(new OutputEvent(`Failed to start HTTP server: ${msg}\n`, 'stderr'));
+      this.cleanup();
+      this.sendResponse(response);
+      this.sendEvent(new TerminatedEvent());
+      return;
+    }
+
+    const gameUrl = `http://localhost:${httpPort}/`;
+    this.sendEvent(new OutputEvent(`Game: ${gameUrl}\n`, 'console'));
+
+    // ── 3. Open browser ──
+    // Send a custom event that extension.ts can handle to open Simple Browser
+    this.sendEvent(new OutputEvent(`\x1b]tyranocode:openBrowser;${gameUrl}\x1b\\`, 'console'));
 
     this.sendResponse(response);
   }
@@ -161,10 +302,14 @@ export class TyranoDebugSession extends LoggingDebugSession {
     const relativePath = this.toGamePath(filePath);
     const clientBreakpoints = args.breakpoints ?? [];
 
-    const lines = clientBreakpoints.map(bp => bp.line);
-    this.pendingBreakpoints.set(relativePath, lines);
+    const bpInfos: BreakpointInfo[] = clientBreakpoints.map(bp => ({
+      line: bp.line,
+      condition: bp.condition,
+      hitCondition: bp.hitCondition,
+      logMessage: bp.logMessage,
+    }));
+    this.pendingBreakpoints.set(relativePath, bpInfos);
 
-    // Send to bridge if connected
     this.syncBreakpoints();
 
     response.body = {
@@ -179,13 +324,28 @@ export class TyranoDebugSession extends LoggingDebugSession {
     this.sendResponse(response);
   }
 
+  protected setExceptionBreakPointsRequest(
+    response: DebugProtocol.SetExceptionBreakpointsResponse,
+    args: DebugProtocol.SetExceptionBreakpointsArguments,
+  ): void {
+    this.exceptionBreakOnIscript = (args.filters || []).includes('iscript');
+    this.sendToBridge('setExceptionBreakpoints', { iscript: this.exceptionBreakOnIscript });
+    this.sendResponse(response);
+  }
+
   private syncBreakpoints(): void {
     if (!this.bridgeSocket) return;
 
-    const allBps: Array<{ file: string; line: number }> = [];
-    for (const [file, lines] of this.pendingBreakpoints) {
-      for (const line of lines) {
-        allBps.push({ file, line });
+    const allBps: Array<{
+      file: string;
+      line: number;
+      condition?: string;
+      hitCondition?: string;
+      logMessage?: string;
+    }> = [];
+    for (const [file, bps] of this.pendingBreakpoints) {
+      for (const bp of bps) {
+        allBps.push({ file, line: bp.line, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage });
       }
     }
 
@@ -208,7 +368,6 @@ export class TyranoDebugSession extends LoggingDebugSession {
     const frames: StackFrame[] = [];
 
     if (this.bridgeState) {
-      // Current position
       frames.push(new StackFrame(
         0,
         `[${this.bridgeState.tag}]`,
@@ -219,7 +378,6 @@ export class TyranoDebugSession extends LoggingDebugSession {
         this.bridgeState.line,
       ));
 
-      // Call stack from bridge
       for (let i = 0; i < this.bridgeState.callStack.length; i++) {
         const frame = this.bridgeState.callStack[i];
         frames.push(new StackFrame(
@@ -229,7 +387,7 @@ export class TyranoDebugSession extends LoggingDebugSession {
             path.basename(frame.file),
             this.toAbsolutePath(frame.file),
           ),
-          0, // line not available from call stack
+          0,
         ));
       }
     }
@@ -299,6 +457,14 @@ export class TyranoDebugSession extends LoggingDebugSession {
 
   // ── Execution control ──
 
+  protected pauseRequest(
+    response: DebugProtocol.PauseResponse,
+    _args: DebugProtocol.PauseArguments,
+  ): void {
+    this.sendToBridge('pause', {});
+    this.sendResponse(response);
+  }
+
   protected continueRequest(
     response: DebugProtocol.ContinueResponse,
     _args: DebugProtocol.ContinueArguments,
@@ -351,7 +517,6 @@ export class TyranoDebugSession extends LoggingDebugSession {
 
     this.sendToBridge('evaluate', { id: evalId, expression: args.expression });
 
-    // Timeout after 5 seconds
     setTimeout(() => {
       if (this.pendingEvals.has(evalId)) {
         this.pendingEvals.delete(evalId);
@@ -361,13 +526,31 @@ export class TyranoDebugSession extends LoggingDebugSession {
     }, 5000);
   }
 
-  // ── Disconnect ──
+  // ── Restart / Terminate / Disconnect ──
+
+  protected restartRequest(
+    response: DebugProtocol.RestartResponse,
+    _args: DebugProtocol.RestartArguments,
+  ): void {
+    this.sendToBridge('restart', {});
+    this.sendResponse(response);
+  }
+
+  protected terminateRequest(
+    response: DebugProtocol.TerminateResponse,
+    _args: DebugProtocol.TerminateArguments,
+  ): void {
+    this.sendToBridge('closeTab', {});
+    this.cleanup();
+    this.sendResponse(response);
+    this.sendEvent(new TerminatedEvent());
+  }
 
   protected disconnectRequest(
     response: DebugProtocol.DisconnectResponse,
     _args: DebugProtocol.DisconnectArguments,
   ): void {
-    this.sendToBridge('disconnect', {});
+    this.sendToBridge('closeTab', {});
     this.cleanup();
     this.sendResponse(response);
   }
@@ -377,9 +560,13 @@ export class TyranoDebugSession extends LoggingDebugSession {
   private handleBridgeMessage(msg: BridgeMessage): void {
     switch (msg.type) {
       case 'connected':
-        this.sendEvent(new OutputEvent(
-          `Bridge v${msg.data.version} connected.\n`, 'console',
-        ));
+        TyranoDebugSession.bridgeConnected = true;
+        if (!this.bridgeConnectedOnce) {
+          this.bridgeConnectedOnce = true;
+          this.sendEvent(new OutputEvent(
+            `Debug bridge v${msg.data.version} connected.\n`, 'console',
+          ));
+        }
         this.syncBreakpoints();
         break;
 
@@ -399,15 +586,73 @@ export class TyranoDebugSession extends LoggingDebugSession {
           'console',
         ));
 
-        this.sendEvent(new StoppedEvent(
-          data.reason === 'breakpoint' ? 'breakpoint' : 'step',
-          THREAD_ID,
+        const stopReason = data.reason === 'breakpoint' ? 'breakpoint'
+          : data.reason === 'pause' ? 'pause' : 'step';
+        this.sendEvent(new StoppedEvent(stopReason, THREAD_ID));
+        break;
+      }
+
+      case 'logpoint': {
+        const logMsg = msg.data.message as string;
+        this.sendEvent(new OutputEvent(logMsg + '\n', 'console'));
+        break;
+      }
+
+      case 'exception': {
+        const excData = msg.data as unknown as BridgeState & { reason: string; message: string };
+        this.bridgeState = {
+          file: excData.file,
+          line: excData.line,
+          tag: excData.tag,
+          params: excData.params,
+          callStack: excData.callStack,
+          variables: excData.variables,
+        };
+        this.sendEvent(new OutputEvent(
+          `Exception in [iscript] at ${excData.file}:${excData.line}: ${excData.message}\n`,
+          'stderr',
+        ));
+        this.sendEvent(new StoppedEvent('exception', THREAD_ID, excData.message));
+        break;
+      }
+
+      case 'positionUpdate': {
+        // Game advanced while paused (user clicked in game)
+        const posData = msg.data as unknown as BridgeState;
+        this.bridgeState = {
+          file: posData.file,
+          line: posData.line,
+          tag: posData.tag,
+          params: posData.params,
+          callStack: posData.callStack,
+          variables: posData.variables,
+        };
+        // VS Code needs ContinuedEvent then StoppedEvent to refresh the stopped UI
+        this.sendEvent(new ContinuedEvent(THREAD_ID));
+        setTimeout(() => {
+          this.sendEvent(new StoppedEvent('pause', THREAD_ID));
+        }, 50);
+        break;
+      }
+
+      case 'debugLog':
+        // Required for WebSocket message framing — do not remove
+        break;
+
+      case 'consoleOutput': {
+        const output = msg.data.output as string;
+        const category = (msg.data.category as string) || 'console';
+        const method = (msg.data.method as string) || 'log';
+        // Prefix with method for clarity (except plain 'log')
+        const prefix = (method === 'error' || method === 'warn' || method === 'alert') ? `[${method}] ` : '';
+        this.sendEvent(new OutputEvent(
+          `${prefix}${output}\n`,
+          category as 'console' | 'stdout' | 'stderr',
         ));
         break;
       }
 
       case 'tagExec':
-        // Optional: log tag execution for profiling
         break;
 
       case 'evaluateResult': {
@@ -422,7 +667,6 @@ export class TyranoDebugSession extends LoggingDebugSession {
       }
 
       case 'variables':
-        // Could be used for async variable requests
         break;
     }
   }
@@ -433,6 +677,7 @@ export class TyranoDebugSession extends LoggingDebugSession {
   }
 
   private cleanup(): void {
+    TyranoDebugSession.bridgeConnected = false;
     if (this.bridgeSocket) {
       try { this.bridgeSocket.close(); } catch { /* ignore */ }
       this.bridgeSocket = null;
@@ -441,18 +686,38 @@ export class TyranoDebugSession extends LoggingDebugSession {
       try { this.wss.close(); } catch { /* ignore */ }
       this.wss = null;
     }
+    if (this.httpServer) {
+      try { this.httpServer.close(); } catch { /* ignore */ }
+      this.httpServer = null;
+    }
     this.pendingEvals.clear();
   }
 
   // ── Path helpers ──
 
   private toGamePath(absolutePath: string): string {
-    // Convert absolute path to game-relative path (e.g., "data/scenario/first.ks")
-    const relative = path.relative(this.projectRoot, absolutePath);
-    return relative.replace(/\\/g, '/');
+    // TyranoScript uses bare filenames for current_scenario (e.g. "first.ks")
+    // so breakpoints must be keyed by bare filename to match
+    return path.basename(absolutePath);
   }
 
   private toAbsolutePath(gamePath: string): string {
-    return path.join(this.projectRoot, gamePath);
+    // Try direct path first
+    const direct = path.join(this.projectRoot, gamePath);
+    if (fs.existsSync(direct)) return direct;
+
+    // TyranoScript's current_scenario is often a bare filename like "first.ks"
+    // The actual file lives under data/scenario/
+    const scenarioPath = path.join(this.projectRoot, 'data', 'scenario', gamePath);
+    if (fs.existsSync(scenarioPath)) return scenarioPath;
+
+    // Fallback: search common subdirectories
+    const searchDirs = ['data/scenario', 'data/others', 'data'];
+    for (const dir of searchDirs) {
+      const candidate = path.join(this.projectRoot, dir, gamePath);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+
+    return direct;
   }
 }

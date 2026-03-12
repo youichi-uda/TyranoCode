@@ -33,6 +33,7 @@
   "command.refreshVariables": "TyranoCode: Refresh Variables",
   "command.previewScene": "TyranoCode: Preview Scene",
 
+  "view.dashboard": "Dashboard",
   "view.variableWatch": "TyranoScript Variables",
   "view.tagTracker": "Tag Execution Tracker"
 }

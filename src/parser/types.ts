@@ -128,6 +128,8 @@ export interface ProjectIndex {
   globalMacros: Map<string, { file: string; node: MacroDefNode }>;
   /** All variable references found: f.xxx, sf.xxx, tf.xxx */
   variables: Map<string, VariableInfo[]>;
+  /** character_name -> all references */
+  characters: Map<string, CharacterInfo[]>;
 }
 
 export interface VariableInfo {
@@ -135,8 +137,26 @@ export interface VariableInfo {
   name: string;
   file: string;
   range: Range;
+  /** Precise range of the `scope.name` substring within the expression */
+  varRange?: Range;
   usage: 'read' | 'write';
 }
+
+export interface CharacterInfo {
+  name: string;
+  file: string;
+  /** Range of the name value in name="xxx" (unquoted content) */
+  nameRange: Range;
+  tagName: string;
+}
+
+/** Tags whose `name` attribute references a character. */
+export const CHARA_NAME_TAGS = new Set([
+  'chara_new', 'chara_show', 'chara_hide', 'chara_mod',
+  'chara_face', 'chara_delete', 'chara_move', 'chara_ptext',
+  'chara_layer', 'chara_layer_mod', 'chara_part',
+  'chara_hide_all',
+]);
 
 /**
  * Tags whose `target` attribute references a label (e.g., `*label_name`).
